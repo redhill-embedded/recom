@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "recom/recom_defs.h"
+#include "recom_defs.h"
 
 
 uint8_t recom_usb_interface_register(struct rec_itf_config *itf_cfg);

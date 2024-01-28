@@ -1,9 +1,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "recom/recom_defs.h"
-#include "recom/backend/usb/recom_usb.h"
-#include "recom/backend/usb/recom_usb_interface.h"
+#include "recom_defs.h"
+#include "backend/usb/recom_usb.h"
+#include "backend/usb/recom_usb_interface.h"
 
 static enum rec_transport_type trans_type = eREC_TRANSPORT_TYPE_NONE;
 

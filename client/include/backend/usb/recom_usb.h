@@ -4,7 +4,7 @@
 #include <tusb.h>
 #include <device/usbd_pvt.h>
 
-#include "recom/recom_defs.h"
+#include "recom_defs.h"
 
 #define TUD_EP_IN   (0x80)
 #define TUD_EP_OUT  (0x00)

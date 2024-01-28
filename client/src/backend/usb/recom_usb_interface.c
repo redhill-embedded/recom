@@ -5,8 +5,8 @@
 #include <tusb.h>
 #include <device/usbd_pvt.h>
 
-#include "recom/recom_defs.h"
-#include "recom/backend/usb/recom_usb.h"
+#include "recom_defs.h"
+#include "backend/usb/recom_usb.h"
 
 #define DEFAULT_EP_OUT  (0x00)
 #define DEFAULT_EP_IN   (0x80)

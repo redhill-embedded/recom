@@ -1,9 +1,9 @@
 #include <tusb.h>
 #include <device/usbd_pvt.h>
 
-#include "recom/backend/usb/recom_usb.h"
-#include "recom/recom_base_device.h"
-#include "recom/recom_defs.h"
+#include "backend/usb/recom_usb.h"
+#include "recom_base_device.h"
+#include "recom_defs.h"
 
 /*
  * This module provides USB device  and interface descriptor handling.

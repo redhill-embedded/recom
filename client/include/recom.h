@@ -1,7 +1,7 @@
 #ifndef _RECOM_H_
 #define _RECOM_H_
 
-#include "recom/recom_defs.h"
+#include "recom_defs.h"
 
 bool recom_init(struct rec_config *cfg);
 bool recom_task(void);

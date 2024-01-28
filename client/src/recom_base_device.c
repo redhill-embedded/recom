@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "recom/recom_defs.h"
+#include "recom_defs.h"
 
 static uint32_t scratch_reg = 0x12345678;
 static const uint32_t hw_id = 0x00005422;
