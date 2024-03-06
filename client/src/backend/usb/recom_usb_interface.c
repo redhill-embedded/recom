@@ -1,7 +1,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <pico/util/queue.h>
+#ifdef PLATFORM_RP2040
+    #include <pico/util/queue.h>
+#endif
+
 #include <tusb.h>
 #include <device/usbd_pvt.h>
 
@@ -25,11 +28,6 @@ typedef struct rec_usb_intf {
     uint8_t ep_out;
 
     /*------------- From this point, data is not cleared by bus reset -------------*/
-    uint8_t interface_id;
-    uint8_t protocol_id;
-    recom_app_ctrl_cb ctrl_cb;
-    recom_app_data_cb data_cb;
-
     // FIFO
     tu_fifo_t rx_ff;
     tu_fifo_t tx_ff;
@@ -41,11 +39,18 @@ typedef struct rec_usb_intf {
     CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EP_BUFSIZE];
     CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EP_BUFSIZE];
 
-    queue_t queue_in;
-    queue_t queue_out;
+    //queue_t queue_in;
+    //queue_t queue_out;
+
+    /*------------- From this point, data is not cleared by driver init -------------*/
+    uint8_t interface_id;
+    uint8_t protocol_id;
+    recom_app_ctrl_cb ctrl_cb;
+    recom_app_data_cb data_cb;
 } rec_usb_intf_t;
 
-#define ITF_MEM_RESET_SIZE   offsetof(struct rec_usb_intf, epout_buf)
+#define ITF_MEM_RESET_SIZE  offsetof(struct rec_usb_intf, rx_ff)
+#define ITF_MEM_INIT_SIZE   offsetof(struct rec_usb_intf, interface_id)
 
 CFG_TUSB_MEM_SECTION static struct rec_usb_intf _recom_usb_itf_arr[RECOM_MAX_INTERFACES];
 
@@ -69,7 +74,7 @@ static bool prepare_out_transaction(struct rec_usb_intf *recom_usb_itf)
 static void recom_usbd_init(void)
 {
     printf("RECOM: USBD init\n\r");
-    tu_memclr(_recom_usb_itf_arr, sizeof(_recom_usb_itf_arr));
+    tu_memclr(_recom_usb_itf_arr, ITF_MEM_INIT_SIZE);
 }
 
 static void recom_usbd_reset(uint8_t rhport)

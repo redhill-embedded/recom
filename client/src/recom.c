@@ -9,6 +9,7 @@ static enum rec_transport_type trans_type = eREC_TRANSPORT_TYPE_NONE;
 
 bool recom_init(struct rec_config *cfg)
 {
+    trans_type = cfg->type;
     if (cfg->type == eREC_TRANSPORT_TYPE_USB) {
         return recom_usb_init(cfg);
     } else if (cfg->type == eREC_TRANSPORT_TYPE_UART) {
