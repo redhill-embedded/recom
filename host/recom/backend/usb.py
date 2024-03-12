@@ -43,23 +43,18 @@ class USBDevice:
                 self.interfaces.append(USBInterface(self.dev, itf))
         self.dev.set_configuration(1)
 
-
     def __repr__(self):
         return "USB Device 0x%04X:0x%04X" % (self.dev.idVendor, self.dev.idProduct)
-
 
     @property
     def dev_type(self):
         return 'usb'
 
-
     def controlRead(self, request, value=0, index=0, dataLen=512, timeout=1000):
         return self.dev.ctrl_transfer(CTRL_REQ.DEVICE_VENDOR_IN, request, value, index, dataLen, timeout)
-        
-    
+
     def controlWrite(self, request, data=b'', value=0, index=0, timeout=1000):
         return self.dev.ctrl_transfer(CTRL_REQ.DEVICE_VENDOR_OUT, request, value, index, data, timeout)
-
 
     def get_interface_list(self):
         itf_list = []
@@ -67,7 +62,6 @@ class USBDevice:
             itf_list.append([itf.desc.bInterfaceClass, itf.desc.bInterfaceSubClass,
                              itf.desc.bInterfaceProtocol, itf.itf_str])
         return itf_list
-
 
     def get_interface(self, itf_identifier):
         if isinstance(itf_identifier, int):
@@ -105,12 +99,10 @@ class USBInterface():
         self.protocol = self.desc.bInterfaceProtocol
         self.itf_str = usb.util.get_string(self.dev, self.desc.iInterface)
 
-
     def __repr__(self):
         return "%s: Subclass=%d, Protocol=%d, EP_OUT=0x%02X, EP_IN=0x%02X" % \
                     (self.itf_str, self.subclass, self.protocol, self.ep_out.bEndpointAddress,
                                                                  self.ep_in.bEndpointAddress)
-
 
     @property
     def itf_string(self):
@@ -118,15 +110,12 @@ class USBInterface():
 
     def controlRead(self, request, value=0, index=0, dataLen=512, timeout=1000):
         return self.dev.ctrl_transfer(CTRL_REQ.INTERFACE_VENDOR_IN, request, value, index, dataLen, timeout)
-        
-    
+
     def controlWrite(self, request, data=b'', value=0, index=0, timeout=1000):
         return self.dev.ctrl_transfer(CTRL_REQ.INTERFACE_VENDOR_OUT, request, value, index, data, timeout)
 
-
-    def read(self, dataLen=512, timeout=1000):
+    def read(self, dataLen=64, timeout=1000):
         return self.ep_in.read(dataLen, timeout)
 
-
     def write(self, data, timeout=1000):
-        return self.ep_put.write(data, timeout)
+        return self.ep_out.write(data, timeout)

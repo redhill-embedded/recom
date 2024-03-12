@@ -4,6 +4,7 @@ import struct
 from recom.backend.usb import find_usb_device_by_serial, find_usb_device_by_vid_pid
 from recom.backend.uart import find_serial_device_by_serial, find_serial_device_by_com_port
 from recom.backend.usb import USBDevice
+from recom.interface import RecomInterface
 
 class BASE_DEV_CMDS(enum.IntEnum):
     CMD_SCRATCH_REG     = 0x00,
@@ -14,22 +15,23 @@ class BASE_DEV_CMDS(enum.IntEnum):
     CMD_RESET           = 0x05
     CMD_GET_INTERFACES  = 0x06,
 
+class DeviceException(Exception):
+    pass
+
 class BaseDevice:
-    
+
     def __init__(self, device):
         self._interfaces = []
         self._comsBackend = None
         self.dev = device
-        self.handle = USBDevice(device)
         #print(self.dev)
 
         # TODO: Detect and setup COMs backend
+        # For now, default to USB
+        self._comsBackend = USBDevice(device)
 
-        #controlDescriptor = {
-        #    'id':       0,
-        #    'name':     'Control',
-        #}
-        #self._controlItf = DeviceInterface(self._comsBackend, controlDescriptor)
+    def __repr__(self):
+        return repr(self._comsBackend)
 
     def _detectInterfaces(self):
         #If USB, get the interfaces from the USB library/descriptor
@@ -38,46 +40,58 @@ class BaseDevice:
 
     def getAllInterfaces(self):
         """Returns a list of available interfaces"""
-        pass
+        return self._comsBackend.get_interface_list()
 
-    def getInterfaceHandle(self, interfaceNum):
-        pass
+    def getInterfaceHandleFromID(self, itf_id):
+        """Finds an interface based on its ID and returns its handle"""
+        itf = self._comsBackend.get_interface(itf_id)
+        if itf is None:
+            raise DeviceException("Interface not found")
+        return RecomInterface(self, itf)
+
+    def getInterfaceHandleFromNumber(self, itf_num):
+        """Finds an interface based on its number in the interface list and returns its handle"""
+        itf_list = self._comsBackend.get_interface_list()
+        if itf_num >= len(itf_list):
+            raise DeviceException("Interface number out of range")
+        itf = self._comsBackend.get_interface(itf_list[itf_num])
+        return RecomInterface(self, itf)
 
     def getHwID(self):
         # The HW ID is a 32-bit number
-        data = self.handle.controlRead(BASE_DEV_CMDS.CMD_HW_ID)
+        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_HW_ID)
         return struct.unpack('<I', data)
-    
+
     def getHwRev(self):
         # The HW revision is a 32-bit number
-        data = self.handle.controlRead(BASE_DEV_CMDS.CMD_HW_REV)
+        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_HW_REV)
         return struct.unpack('<I', data)
-    
+
     def getFwRev(self):
         # The FW revision is a string
-        data = self.handle.controlRead(BASE_DEV_CMDS.CMD_FW_REV)
+        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_FW_REV)
         return ''.join(chr(x) for x in data)
-    
+
     def getSerial(self):
         # The device serial number is a string
-        data = self.handle.controlRead(BASE_DEV_CMDS.CMD_SERIAL)
+        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_SERIAL)
         return ''.join(chr(x) for x in data)
 
     def getScratchReg(self):
         # The scratch register is a 32-bit number
-        data = self.handle.controlRead(BASE_DEV_CMDS.CMD_SCRATCH_REG)
+        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_SCRATCH_REG)
         return struct.unpack('<I', data)
-    
+
     def setScratchReg(self, scratch_value:int):
         data = struct.pack('<I', scratch_value)
-        return self.handle.controlWrite(BASE_DEV_CMDS.CMD_SCRATCH_REG, data)
+        return self._comsBackend.controlWrite(BASE_DEV_CMDS.CMD_SCRATCH_REG, data)
 
 class RecomDevice(BaseDevice):
 
     def __init__(self, serial=None, device_id=None):
         dev = self._find_device(serial, device_id)
         if dev is None:
-            raise Exception("No device found")
+            raise DeviceException("No device found")
         super().__init__(dev)
 
     def _find_device(self, serial, device_id):
@@ -93,7 +107,7 @@ class RecomDevice(BaseDevice):
             # Check if we can find a USB device with the specified device_id (VID:PID in this case)
             dev = find_usb_device_by_vid_pid(device_id)
             if len(dev) > 1:
-                raise Exception("More than one device found!")
+                raise DeviceException("More than one device found!")
             elif len(dev) == 1:
                 return dev[0]
             # No USB devices found, now try to find serial devices with the specified device_id (port ID)

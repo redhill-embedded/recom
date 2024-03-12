@@ -1,31 +1,37 @@
 import argparse
 
 import recom
-from recom.recom_device import RecomDevice
+from recom.device import RecomDevice, DeviceException
 
 def list_devices(device_id, serial):
+    dev = None
     print("Finding device")
     if serial is not None:
         print(f'Find by serial - {serial}')
-        dev = RecomDevice(serial=serial)
+        try:
+            dev = RecomDevice(serial=serial)
+        except DeviceException as dev_exp:
+            print(dev_exp)
+            return
+
     else:
         print(f'Find by DeviceID - {device_id}')
-        dev = RecomDevice(device_id=device_id)
-    
-    if not dev:
-        print("No device found!")
-        return
+        try:
+            dev = RecomDevice(device_id=device_id)
+        except DeviceException as dev_exp:
+            print(dev_exp)
+            return
 
-    print("Found device: %s" % dev.handle)
+    print("Found device: %s" % dev)
 
     print("\tHW ID/Rev: 0x%04X / 0x%04X" % (dev.hw_id, dev.hw_revision))
     print("\tFW Rev: %s" % dev.fw_revision)
     print("\tSerial: %s" % dev.serial)
     print("\n\tInterfaces:")
-    interfaces = dev.handle.get_interface_list()
+    interfaces = dev.getAllInterfaces()
     for itf in interfaces:
         itf_tuple = (itf[1], itf[2])
-        itf_handle = dev.handle.get_interface(itf_tuple)
+        itf_handle = dev.getInterfaceHandleFromID(itf_tuple)
         print("\t\t%s" % itf_handle)
 
 

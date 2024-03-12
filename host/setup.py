@@ -13,7 +13,7 @@ setup(
     author_email='adrian@redhill-embedded.com',
     description='Embedded communication backend',
     keywords='embedded communication backedn usb serial',
-    url='https://github.com/redhill-embedded/retool.git',
+    url='https://github.com/redhill-embedded/recom.git',
     #download_url='https://github.com/redhill-embedded/sertool/archive/v_010.tar.gz',
     package_data={
         "recom": [
