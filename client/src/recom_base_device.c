@@ -3,8 +3,8 @@
 #include <string.h>
 
 #include "recom_defs.h"
+#include "recom_git_version.h"
 
-static uint32_t scratch_reg = 0x12345678;
 static const uint32_t hw_id = 0x00005422;
 static const uint32_t hw_rev = 0x00000001;
 static const char * fw_rev = "v0.0.1-52d46fa2b";
@@ -17,22 +17,19 @@ bool rec_bdev_process_msg(struct rec_transport_control *ctrl, struct rec_message
 
     switch (msg->cmd) {
     
-    case REC_BDEV_CMD_SCRATCH:
+    case REC_BDEV_CMD_DEV_ID:
         if (read) {
-            memcpy(msg->buffer, (uint8_t *) &scratch_reg, sizeof(scratch_reg));
-            msg->data_len = sizeof(scratch_reg);
+            uint32_t recom_dev_id = RECOM_DEVICE_ID;
+            memcpy(msg->buffer, (uint8_t *) &recom_dev_id, 4);
+            uint16_t recom_prot_ver = RECOM_PROTOCOL_VER;
+            memcpy(&msg->buffer[4], (uint8_t *) &recom_prot_ver, 2);
+            strcpy(&msg->buffer[6], RECOM_GIT_VERSION);
+            msg->data_len = 6 + strlen(RECOM_GIT_VERSION);
             return true;
         } else {
-            if (msg->data_len == 4) {
-                memcpy((uint8_t *) &scratch_reg, msg->buffer, 4);
-                return true;
-            } else if (msg->data_len < 4) {
-                memset((uint8_t *) &scratch_reg, 0x00, 4);
-                memcpy((uint8_t *) &scratch_reg, msg->buffer, msg->data_len);
-                return true;
-            }
             return false;
         }
+
         break;
 
     case REC_BDEV_CMD_HW_ID:

@@ -6,6 +6,18 @@
 
 #include "recom_config.h"
 
+/* Magic Recom device identifier.
+ * This is used for identifying devices as Recom enabled device during the
+ * detection process.
+ * DO NOT CHANGE!!!
+ */
+#define RECOM_DEVICE_ID     (0x53C08A30)
+
+/* Recom protocol version
+ * This is increased every-time a protocol change is made.
+ */
+#define RECOM_PROTOCOL_VER  (0x0001)
+
 enum rec_transport_type {
     eREC_TRANSPORT_TYPE_NONE = 0,
     eREC_TRANSPORT_TYPE_USB,
@@ -35,7 +47,7 @@ struct rec_message {
 };
 
 enum rec_bdev_req_type {
-    REC_BDEV_CMD_SCRATCH    = 0,
+    REC_BDEV_CMD_DEV_ID     = 0,
     REC_BDEV_CMD_HW_ID      = 1,
     REC_BDEC_CMD_HW_REV     = 2,
     REC_BDEV_CMD_FW_REV     = 3,
