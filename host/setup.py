@@ -1,13 +1,11 @@
 
-from setuptools import setup
-
-from recom import __version__
+from setuptools import setup, find_packages
 
 setup(
     name='recom',
-    packages=['recom'],
+    version="0.0.1",
+    packages=find_packages(),
     setup_requires=['setuptools_scm'],
-    version=__version__,
     license='MIT',
     author='Adrian Rothenbuhler',
     author_email='adrian@redhill-embedded.com',
