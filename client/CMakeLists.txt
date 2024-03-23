@@ -14,3 +14,21 @@ set(RECOM_INCLUDE_DIRS
     ${RECOM_BASE_DIR}/include/backend/usb
     PARENT_SCOPE
 )
+
+# Extract the current Recom version from git tag
+execute_process(
+    COMMAND git describe --tags --dirty
+    WORKING_DIRECTORY ${RECOM_BASE_DIR}
+    OUTPUT_VARIABLE RECOM_GIT_VERSION
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+# Check if git tag was found
+if(NOT RECOM_GIT_VERSION)
+    set(RECOM_GIT_VERSION "Unknown")
+endif()
+
+# Print and save to file
+message(STATUS "RECOM_GIT_VERSION: ${RECOM_GIT_VERSION}")
+file(WRITE ${RECOM_BASE_DIR}/include/recom_git_version.h "#ifndef RECOM_GIT_VERSION_H\n#define RECOM_GIT_VERSION_H\n\n#define RECOM_GIT_VERSION \"${RECOM_GIT_VERSION}\"\n\n#endif")

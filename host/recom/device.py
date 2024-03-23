@@ -6,8 +6,11 @@ from recom.backend.uart import find_serial_device_by_serial, find_serial_device_
 from recom.backend.usb import USBDevice
 from recom.interface import RecomInterface
 
+# Recom device identifier. DO NOT CHANGE!
+RECOM_DEV_ID = 0x53C08A30
+
 class BASE_DEV_CMDS(enum.IntEnum):
-    CMD_SCRATCH_REG     = 0x00,
+    CMD_RECOM_DEV_ID    = 0x00,
     CMD_HW_ID           = 0x01,
     CMD_HW_REV          = 0x02,
     CMD_FW_REV          = 0x03,
@@ -17,7 +20,6 @@ class BASE_DEV_CMDS(enum.IntEnum):
 
 class DeviceException(Exception):
     pass
-
 class BaseDevice:
 
     def __init__(self, device):
@@ -41,6 +43,18 @@ class BaseDevice:
     def getAllInterfaces(self):
         """Returns a list of available interfaces"""
         return self._comsBackend.get_interface_list()
+
+    def getRecomDevID(self):
+        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_RECOM_DEV_ID)
+        if len(data) <= 6:
+            return None
+        id, prot_ver = struct.unpack('<IH', data[0:6])
+        ver_str = str(data[6:], 'utf-8')
+        return {
+            "id": id,
+            "protocol_version": prot_ver,
+            "version_string": ver_str,
+        }
 
     def getInterfaceHandleFromID(self, itf_id):
         """Finds an interface based on its ID and returns its handle"""
@@ -77,15 +91,6 @@ class BaseDevice:
         data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_SERIAL)
         return ''.join(chr(x) for x in data)
 
-    def getScratchReg(self):
-        # The scratch register is a 32-bit number
-        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_SCRATCH_REG)
-        return struct.unpack('<I', data)
-
-    def setScratchReg(self, scratch_value:int):
-        data = struct.pack('<I', scratch_value)
-        return self._comsBackend.controlWrite(BASE_DEV_CMDS.CMD_SCRATCH_REG, data)
-
 class RecomDevice(BaseDevice):
 
     def __init__(self, serial=None, device_id=None):
@@ -93,6 +98,14 @@ class RecomDevice(BaseDevice):
         if dev is None:
             raise DeviceException("No device found")
         super().__init__(dev)
+        recom_dev_info = self.getRecomDevID()
+        if recom_dev_info is None:
+            raise DeviceException("Device is not a recom device - Invalid ID response")
+        elif recom_dev_info["id"] != RECOM_DEV_ID:
+            raise DeviceException("Device is not a recom device - ID mismatch")
+        self.protocol_version = recom_dev_info["protocol_version"]
+        self.recom_fw_version = recom_dev_info["version_string"]
+
 
     def _find_device(self, serial, device_id):
         if serial is not None:

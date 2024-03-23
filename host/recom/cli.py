@@ -24,6 +24,11 @@ def list_devices(device_id, serial):
 
     print("Found device: %s" % dev)
 
+    # Recom information
+    print("\tRecom protocol version = %d" % dev.protocol_version)
+    print("\tRecom FW version: %s" % dev.recom_fw_version)
+
+    # Device information
     print("\tHW ID/Rev: 0x%04X / 0x%04X" % (dev.hw_id, dev.hw_revision))
     print("\tFW Rev: %s" % dev.fw_revision)
     print("\tSerial: %s" % dev.serial)
