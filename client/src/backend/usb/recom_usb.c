@@ -314,7 +314,7 @@ const uint16_t *tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 }
 
 /* 
- * This TinyUSB callback is invoked when a vendory type control transfer occured (on endpoint 0).
+ * This TinyUSB callback is invoked when a vendor type control transfer occured (on endpoint 0).
  * The request is processed further and then passed on to either the device or interface/class
  * handler.
  * Returning false will stall the control endpoint (e.g. unsupported request)
@@ -329,9 +329,10 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage,
     case TUSB_REQ_RCPT_INTERFACE:
         /* Interface control request. Call the registered class' handler */
         if (request->wIndex >= RECOM_MAX_INTERFACES ||
-            !interface_class_drivers[request->wIndex].control_xfer_cb)
+            !interface_class_drivers[request->wIndex].control_xfer_cb) {
             /* Out of bounds or no driver registered */
             return false;
+        }
         const usbd_class_driver_t *drv = &interface_class_drivers[request->wIndex];
         if (!drv->control_xfer_cb) {
             /* The driver doesn't have a control transfer handler */

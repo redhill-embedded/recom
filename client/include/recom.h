@@ -14,7 +14,7 @@ bool recom_task(void);
  * @return true
  * @return false
  */
-bool recom_interface_register(struct rec_itf *itf, struct rec_itf_config *config);
+bool recom_interface_register(struct rec_itf_config *config);
 
 /**
  * @brief Returns the number of bytes available at the interface
@@ -22,7 +22,7 @@ bool recom_interface_register(struct rec_itf *itf, struct rec_itf_config *config
  * @param itf RECom interface handle
  * @return uint32_t
  */
-uint32_t recom_interface_bytes_available(struct rec_itf *itf);
+uint32_t recom_interface_bytes_available(uint8_t itf_num);
 
 /**
  * @brief Reads data from the interface
@@ -33,7 +33,7 @@ uint32_t recom_interface_bytes_available(struct rec_itf *itf);
  * @return true
  * @return false
  */
-bool recom_interface_read(struct rec_itf *itf, uint8_t *buffer, uint32_t bytes_to_read);
+bool recom_interface_read(uint8_t itf_num, uint8_t *buffer, uint32_t bytes_to_read);
 
 /**
  * @brief Writes data to the interface
@@ -44,6 +44,6 @@ bool recom_interface_read(struct rec_itf *itf, uint8_t *buffer, uint32_t bytes_t
  * @return true
  * @return false
  */
-bool recom_interface_write(struct rec_itf *itf, uint8_t *buffer, uint32_t bytes_to_write);
+bool recom_interface_write(uint8_t itf_num, uint8_t *buffer, uint32_t bytes_to_write);
 
 #endif /* _RECOM_H_ */

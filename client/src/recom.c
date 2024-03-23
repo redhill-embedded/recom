@@ -34,7 +34,7 @@ bool recom_task(void)
  * *****************
  */
 
-bool recom_interface_register(struct rec_itf *itf, struct rec_itf_config *config)
+bool recom_interface_register(struct rec_itf_config *config)
 {
     /*
      * For now this is a simple wrapper around the USB interface.
@@ -43,29 +43,29 @@ bool recom_interface_register(struct rec_itf *itf, struct rec_itf_config *config
     return recom_usb_interface_register(config);
 }
 
-uint32_t recom_interface_bytes_available(struct rec_itf *itf)
+uint32_t recom_interface_bytes_available(uint8_t itf_num)
 {
     /*
      * For now this is a simple wrapper around the USB interface.
      * Replace with backend selector once more backends are added.
      */
-    return recom_usb_interface_bytes_available(itf->itf_id);
+    return recom_usb_interface_bytes_available(itf_num);
 }
 
-bool recom_interface_read(struct rec_itf *itf, uint8_t *buffer, uint32_t bytes_to_read)
+bool recom_interface_read(uint8_t itf_num, uint8_t *buffer, uint32_t bytes_to_read)
 {
     /*
      * For now this is a simple wrapper around the USB interface.
      * Replace with backend selector once more backends are added.
      */
-    return recom_usb_interface_read(itf->itf_id, buffer, bytes_to_read);
+    return recom_usb_interface_read(itf_num, buffer, bytes_to_read);
 }
 
-bool recom_interface_write(struct rec_itf *itf, uint8_t *buffer, uint32_t bytes_to_write)
+bool recom_interface_write(uint8_t itf_num, uint8_t *buffer, uint32_t bytes_to_write)
 {
     /*
      * For now this is a simple wrapper around the USB interface.
      * Replace with backend selector once more backends are added.
      */
-    return recom_usb_interface_write(itf->itf_id, buffer, bytes_to_write);
+    return recom_usb_interface_write(itf_num, buffer, bytes_to_write);
 }
