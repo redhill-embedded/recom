@@ -30,5 +30,5 @@ if(NOT RECOM_GIT_VERSION)
 endif()
 
 # Print and save to file
-message(STATUS "RECOM_GIT_VERSION: ${RECOM_GIT_VESION}")
+message(STATUS "RECOM_GIT_VERSION: ${RECOM_GIT_VERSION}")
 file(WRITE ${RECOM_BASE_DIR}/include/recom_git_version.h "#ifndef RECOM_GIT_VERSION_H\n#define RECOM_GIT_VERSION_H\n\n#define RECOM_GIT_VERSION \"${RECOM_GIT_VERSION}\"\n\n#endif")
