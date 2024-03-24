@@ -2,6 +2,7 @@ import argparse
 
 import recom
 from recom.device import RecomDevice, DeviceException
+from recom.backend.usb import get_all_devices
 
 def list_devices(device_id, serial):
     dev = None
@@ -39,14 +40,41 @@ def list_devices(device_id, serial):
         itf_handle = dev.getInterfaceHandleFromID(itf_tuple)
         print("\t\t%s" % itf_handle)
 
+def run_scan():
+    print("Running scan")
+    dev_list = get_all_devices()
+    for dev in dev_list:
+        try:
+            r_dev = RecomDevice(dev_handle=dev)
+        except Exception:
+            pass
+        else:
+            print("\tHW ID/Rev: 0x%04X / 0x%04X" % (dev.hw_id, dev.hw_revision))
+            print("\tFW Rev: %s" % dev.fw_revision)
+            print("\tSerial: %s" % dev.serial)
+
+def print_info():
+    print(f"\n*****\nWelcome to Recom {recom.__version__}")
+    print("\nRecom is most useful as an API to interract with Recom-enabled boards, but there are")
+    print("a few useful things you can do with this command-line interface:")
+    print("    - Scan for Recom-enabled boards ('--scan' option)")
+    print("    - Look for a particular board based on its device ID (i.e. VID/PID) or serial number.")
+    print("      Use the '-d' parameter to sepcify the device ID and '-S' for the serial number.")
+    print("*****\n")
 
 def cli(argv):
     parser = argparse.ArgumentParser(description="Open a serial port and read/write data.")
     parser.add_argument('--version', action='version', version=recom.__version__,
                                                 help="Print package version")
-    parser.add_argument('-d', '--device', help='Device ID to search for ([VID:PID] for USB, port for serial)')
-    parser.add_argument('-S', '--serial', help='Serial number to search for')
+    parser.add_argument('-d', '--device', default=None, help='Device ID to search for ([VID:PID] for USB, port for serial)')
+    parser.add_argument('-S', '--serial', default=None, help='Serial number to search for')
+    parser.add_argument("--scan", action="store_true", help="Scan for Recom-enabled boards")
 
     args = parser.parse_args(argv)
 
-    list_devices(args.device, args.serial)
+    if args.scan:
+        run_scan()
+    elif args.device is not None or args.serial is not None:
+        list_devices(args.device, args.serial)
+    else:
+        print_info()

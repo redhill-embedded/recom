@@ -1,8 +1,8 @@
 #from interface import DeviceInterface
 import enum
 import struct
-from recom.backend.usb import find_usb_device_by_serial, find_usb_device_by_vid_pid
-from recom.backend.uart import find_serial_device_by_serial, find_serial_device_by_com_port
+from recom.backend.usb import find_device_by_serial, find_device_by_id
+from recom.backend.uart import find_device_by_serial, find_device_by_id
 from recom.backend.usb import USBDevice
 from recom.interface import RecomInterface
 
@@ -93,10 +93,13 @@ class BaseDevice:
 
 class RecomDevice(BaseDevice):
 
-    def __init__(self, serial=None, device_id=None):
-        dev = self._find_device(serial, device_id)
-        if dev is None:
-            raise DeviceException("No device found")
+    def __init__(self, serial=None, device_id=None, dev_handle=None):
+        if dev_handle:
+            dev = dev_handle
+        else:
+            dev = self._find_device(serial, device_id)
+            if dev is None:
+                raise DeviceException("No device found")
         super().__init__(dev)
         recom_dev_info = self.getRecomDevID()
         if recom_dev_info is None:
