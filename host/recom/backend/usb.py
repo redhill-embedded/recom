@@ -2,7 +2,7 @@ import enum
 import usb.core
 import usb.util
 
-def find_usb_device_by_vid_pid(vid_pid):
+def find_device_by_id(vid_pid):
     if isinstance(vid_pid, tuple):
         vid = vid_pid[0]
         pid = vid_pid[1]
@@ -22,8 +22,12 @@ def find_usb_device_by_vid_pid(vid_pid):
         return list(usb.core.find(find_all=True, idProduct=pid))
     return None
 
-def find_usb_device_by_serial(serial):
+def find_device_by_serial(serial):
     return usb.core.find(serial=serial)
+
+def get_all_devices():
+    return list(usb.core.find(find_all=True))
+
 
 class CTRL_REQ(enum.IntEnum):
     DEVICE_VENDOR_OUT = 0x40
