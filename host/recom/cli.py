@@ -10,6 +10,7 @@ import usb.core
 
 import recom
 from recom.device import RecomDevice, RecomDeviceException
+from recom.device import RESET
 from recom.backend.usb import get_all_devices
 
 def print_recom_dev_info(dev, verbose):
@@ -58,6 +59,14 @@ def run_scan(verbose):
             pass
         else:
             print_recom_dev_info(dev, verbose)
+
+def reset_device(reset_option, device_id, serial):
+    try:
+        dev = RecomDevice(device_id=device_id, serial=serial)
+    except RecomDeviceException as dev_exp:
+        print(dev_exp)
+        return
+    dev.reset(reset_option)
 
 def diag_env(save_report=False):
     # System Information
@@ -153,7 +162,7 @@ def cli(argv):
     parser.add_argument("-v", "--verbose", action="store_true", help="Increase verbosity")
     parser.add_argument("--report", action="store_true", help="Write env report to file")
 
-    args = parser.parse_args(argv)
+    args, remaining_args = parser.parse_known_args(argv)
 
     if args.cmd == "scan":
         run_scan(args.verbose)
@@ -162,6 +171,16 @@ def cli(argv):
             list_devices(args.device, args.serial, args.verbose)
         else:
             print("Please provide either a device ID or a device serial number")
+    elif args.cmd == "reset":
+        if remaining_args:
+            # Unknown arguments are present. Assume the first one is the reset option
+            rst_opt = int(remaining_args[0])
+        else:
+            print("No reset option provided. Defaulting to rebooting device.")
+            rst_opt = RESET.RCM_DEV_RST_REBOOT
+        if args.device is not None or args.serial is not None:
+            print("Please provide either a device ID or a device serial number")
+        reset_device(rst_opt, args.device, args.serial)
     elif args.cmd == "env":
         diag_env(args.report)
     elif args.cmd == "usb_diag":

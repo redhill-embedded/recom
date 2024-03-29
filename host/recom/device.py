@@ -18,6 +18,11 @@ class BASE_DEV_CMDS(enum.IntEnum):
     CMD_RESET           = 0x05
     CMD_GET_INTERFACES  = 0x06,
 
+class RESET(enum.IntEnum):
+    RCM_DEV_RST_REBOOT      = 0x00,     # Reset the device back to the application
+    RCM_DEV_RST_BOOTLOADER  = 0x01,     # Reset to bootloader
+    RCM_DEV_RST_ROM_BOOT    = 0x02,     # Reset to built-in ROM bootloader
+
 class RecomDeviceException(Exception):
     pass
 class BaseDevice:
@@ -26,7 +31,6 @@ class BaseDevice:
         self._interfaces = []
         self._comsBackend = None
         self.dev = device
-        #print(self.dev)
 
         # TODO: Detect and setup COMs backend
         # For now, default to USB
@@ -91,6 +95,11 @@ class BaseDevice:
         data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_SERIAL)
         return ''.join(chr(x) for x in data)
 
+    def sendReset(self, reset: int):
+        # Send a reset command
+        data = struct.pack("B", reset)
+        self._comsBackend.controlWrite(BASE_DEV_CMDS.CMD_RESET, data)
+
 class RecomDevice(BaseDevice):
 
     def __init__(self, serial=None, device_id=None, dev_handle=None):
@@ -132,8 +141,8 @@ class RecomDevice(BaseDevice):
             return dev
 
 
-    def reset(self):
-        pass
+    def reset(self, reset: int):
+        self.sendReset(reset)
 
     @property
     def hw_id(self):
