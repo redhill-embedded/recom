@@ -18,7 +18,7 @@ class BASE_DEV_CMDS(enum.IntEnum):
     CMD_RESET           = 0x05
     CMD_GET_INTERFACES  = 0x06,
 
-class DeviceException(Exception):
+class RecomDeviceException(Exception):
     pass
 class BaseDevice:
 
@@ -60,14 +60,14 @@ class BaseDevice:
         """Finds an interface based on its ID and returns its handle"""
         itf = self._comsBackend.get_interface(itf_id)
         if itf is None:
-            raise DeviceException("Interface not found")
+            raise RecomDeviceException("Interface not found")
         return RecomInterface(self, itf)
 
     def getInterfaceHandleFromNumber(self, itf_num):
         """Finds an interface based on its number in the interface list and returns its handle"""
         itf_list = self._comsBackend.get_interface_list()
         if itf_num >= len(itf_list):
-            raise DeviceException("Interface number out of range")
+            raise RecomDeviceException("Interface number out of range")
         itf = self._comsBackend.get_interface(itf_list[itf_num])
         return RecomInterface(self, itf)
 
@@ -99,13 +99,13 @@ class RecomDevice(BaseDevice):
         else:
             dev = self._find_device(serial, device_id)
             if dev is None:
-                raise DeviceException("No device found")
+                raise RecomDeviceException("No device found")
         super().__init__(dev)
         recom_dev_info = self.getRecomDevID()
         if recom_dev_info is None:
-            raise DeviceException("Device is not a recom device - Invalid ID response")
+            raise RecomDeviceException("Device is not a recom device - Invalid ID response")
         elif recom_dev_info["id"] != RECOM_DEV_ID:
-            raise DeviceException("Device is not a recom device - ID mismatch")
+            raise RecomDeviceException("Device is not a recom device - ID mismatch")
         self.protocol_version = recom_dev_info["protocol_version"]
         self.recom_fw_version = recom_dev_info["version_string"]
 
@@ -124,7 +124,7 @@ class RecomDevice(BaseDevice):
             dev = find_device_by_id(device_id)
             if dev is not None:
                 if len(dev) > 1:
-                    raise DeviceException("More than one device found!")
+                    raise RecomDeviceException("More than one device found!")
                 elif len(dev) == 1:
                     return dev[0]
             # No USB devices found, now try to find serial devices with the specified device_id (port ID)
