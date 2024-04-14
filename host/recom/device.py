@@ -1,8 +1,8 @@
 #from interface import DeviceInterface
 import enum
 import struct
-from recom.backend.usb import find_usb_device_by_serial, find_usb_device_by_vid_pid
-from recom.backend.uart import find_serial_device_by_serial, find_serial_device_by_com_port
+from recom.backend.usb import find_device_by_serial, find_device_by_id
+#from recom.backend.uart import find_device_by_serial, find_device_by_id
 from recom.backend.usb import USBDevice
 from recom.interface import RecomInterface
 
@@ -18,7 +18,7 @@ class BASE_DEV_CMDS(enum.IntEnum):
     CMD_RESET           = 0x05
     CMD_GET_INTERFACES  = 0x06,
 
-class DeviceException(Exception):
+class RecomDeviceException(Exception):
     pass
 class BaseDevice:
 
@@ -60,14 +60,14 @@ class BaseDevice:
         """Finds an interface based on its ID and returns its handle"""
         itf = self._comsBackend.get_interface(itf_id)
         if itf is None:
-            raise DeviceException("Interface not found")
+            raise RecomDeviceException("Interface not found")
         return RecomInterface(self, itf)
 
     def getInterfaceHandleFromNumber(self, itf_num):
         """Finds an interface based on its number in the interface list and returns its handle"""
         itf_list = self._comsBackend.get_interface_list()
         if itf_num >= len(itf_list):
-            raise DeviceException("Interface number out of range")
+            raise RecomDeviceException("Interface number out of range")
         itf = self._comsBackend.get_interface(itf_list[itf_num])
         return RecomInterface(self, itf)
 
@@ -93,16 +93,19 @@ class BaseDevice:
 
 class RecomDevice(BaseDevice):
 
-    def __init__(self, serial=None, device_id=None):
-        dev = self._find_device(serial, device_id)
-        if dev is None:
-            raise DeviceException("No device found")
+    def __init__(self, serial=None, device_id=None, dev_handle=None):
+        if dev_handle:
+            dev = dev_handle
+        else:
+            dev = self._find_device(serial, device_id)
+            if dev is None:
+                raise RecomDeviceException("No device found")
         super().__init__(dev)
         recom_dev_info = self.getRecomDevID()
         if recom_dev_info is None:
-            raise DeviceException("Device is not a recom device - Invalid ID response")
+            raise RecomDeviceException("Device is not a recom device - Invalid ID response")
         elif recom_dev_info["id"] != RECOM_DEV_ID:
-            raise DeviceException("Device is not a recom device - ID mismatch")
+            raise RecomDeviceException("Device is not a recom device - ID mismatch")
         self.protocol_version = recom_dev_info["protocol_version"]
         self.recom_fw_version = recom_dev_info["version_string"]
 
@@ -110,21 +113,22 @@ class RecomDevice(BaseDevice):
     def _find_device(self, serial, device_id):
         if serial is not None:
             # Check if we have a USB device with the specified serial
-            dev = find_usb_device_by_serial(serial)
+            dev = find_device_by_serial(serial)
             if dev is not None:
                 return dev
             # Next, check if there is a serial device with the specified serial
-            dev = find_serial_device_by_serial(serial)
+            #dev = find_serial_device_by_serial(serial)
             return dev
         elif device_id is not None:
             # Check if we can find a USB device with the specified device_id (VID:PID in this case)
-            dev = find_usb_device_by_vid_pid(device_id)
-            if len(dev) > 1:
-                raise DeviceException("More than one device found!")
-            elif len(dev) == 1:
-                return dev[0]
+            dev = find_device_by_id(device_id)
+            if dev is not None:
+                if len(dev) > 1:
+                    raise RecomDeviceException("More than one device found!")
+                elif len(dev) == 1:
+                    return dev[0]
             # No USB devices found, now try to find serial devices with the specified device_id (port ID)
-            dev = find_serial_device_by_com_port(device_id)
+            #dev = find_serial_device_by_com_port(device_id)
             return dev
 
 
