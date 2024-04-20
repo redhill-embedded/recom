@@ -1,9 +1,7 @@
 #from interface import DeviceInterface
 import enum
 import struct
-from recom.backend.usb import find_device_by_serial, find_device_by_id
-#from recom.backend.uart import find_device_by_serial, find_device_by_id
-from recom.backend.usb import USBDevice
+from recom.backend import backends
 from recom.interface import RecomInterface
 
 # Recom device identifier. DO NOT CHANGE!
@@ -24,28 +22,21 @@ class BaseDevice:
 
     def __init__(self, device):
         self._interfaces = []
-        self._comsBackend = None
-        self.dev = device
-        #print(self.dev)
+        self._comsBackend = device
+        self._comsBackend.open()
 
-        # TODO: Detect and setup COMs backend
-        # For now, default to USB
-        self._comsBackend = USBDevice(device)
+    def __del__(self):
+        self._comsBackend.close()
 
     def __repr__(self):
         return repr(self._comsBackend)
-
-    def _detectInterfaces(self):
-        #If USB, get the interfaces from the USB library/descriptor
-        #If UART or other interface, use the control interface to query the available interfaces
-        pass
 
     def getAllInterfaces(self):
         """Returns a list of available interfaces"""
         return self._comsBackend.get_interface_list()
 
     def getRecomDevID(self):
-        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_RECOM_DEV_ID)
+        data = self._comsBackend.read(BASE_DEV_CMDS.CMD_RECOM_DEV_ID, timeout=100)
         if len(data) <= 6:
             return None
         id, prot_ver = struct.unpack('<IH', data[0:6])
@@ -73,33 +64,37 @@ class BaseDevice:
 
     def getHwID(self):
         # The HW ID is a 32-bit number
-        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_HW_ID)
+        data = self._comsBackend.read(BASE_DEV_CMDS.CMD_HW_ID)
         return struct.unpack('<I', data)
 
     def getHwRev(self):
         # The HW revision is a 32-bit number
-        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_HW_REV)
+        data = self._comsBackend.read(BASE_DEV_CMDS.CMD_HW_REV)
         return struct.unpack('<I', data)
 
     def getFwRev(self):
         # The FW revision is a string
-        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_FW_REV)
+        data = self._comsBackend.read(BASE_DEV_CMDS.CMD_FW_REV)
         return ''.join(chr(x) for x in data)
 
     def getSerial(self):
         # The device serial number is a string
-        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_SERIAL)
+        data = self._comsBackend.read(BASE_DEV_CMDS.CMD_SERIAL)
         return ''.join(chr(x) for x in data)
 
 class RecomDevice(BaseDevice):
 
-    def __init__(self, serial=None, device_id=None, dev_handle=None):
-        if dev_handle:
-            dev = dev_handle
-        else:
-            dev = self._find_device(serial, device_id)
+    def __init__(self, **kwargs):
+        # We can initialize a RecomDevice with a known device handle, or we can provide device
+        # constraints paramters that will be used to find the device automatically.
+        if "device" not in kwargs:
+            # No device handle/object provided. Try to find a device using the provided constraints
+            dev = self._find_device(*kwargs)
             if dev is None:
                 raise RecomDeviceException("No device found")
+        else:
+            # Device handle/object provided. Use it
+            dev = kwargs["device"]
         super().__init__(dev)
         recom_dev_info = self.getRecomDevID()
         if recom_dev_info is None:
@@ -110,8 +105,8 @@ class RecomDevice(BaseDevice):
         self.recom_fw_version = recom_dev_info["version_string"]
 
 
-    def _find_device(self, serial, device_id):
-        if serial is not None:
+    def _find_device(self, **kwargs):
+        if "serial" in kwargs:
             # Check if we have a USB device with the specified serial
             dev = find_device_by_serial(serial)
             if dev is not None:
@@ -151,4 +146,6 @@ class RecomDevice(BaseDevice):
     def serial(self):
         return self.getSerial()
 
-
+    @classmethod
+    def scan(cls):
+        pass

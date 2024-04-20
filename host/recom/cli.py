@@ -10,7 +10,7 @@ import usb.core
 
 import recom
 from recom.device import RecomDevice, RecomDeviceException
-from recom.backend.usb import get_all_devices
+from recom.backend import backends
 
 def print_recom_dev_info(dev, verbose):
     print("%s - HW ID/Rev: 0x%04X / 0x%04X" % (dev, dev.hw_id, dev.hw_revision))
@@ -41,7 +41,7 @@ def list_devices(device_id, serial, verbose):
     else:
         print(f'Find by DeviceID - {device_id}')
         try:
-            dev = RecomDevice(device_id=device_id)
+            dev = RecomDevice(id=device_id)
         except RecomDeviceException as dev_exp:
             print(dev_exp)
             return
@@ -50,11 +50,15 @@ def list_devices(device_id, serial, verbose):
 
 def run_scan(verbose):
     print("Scanning for Recom devices...")
-    dev_list = get_all_devices()
+    dev_list = []
+    for be in backends:
+        be_devices = be.find()
+        if be_devices is not None:
+            dev_list.extend(be_devices)
     for s_dev in dev_list:
         try:
-            dev = RecomDevice(dev_handle=s_dev)
-        except Exception:
+            dev = RecomDevice(device=s_dev)
+        except Exception as exp:
             pass
         else:
             print_recom_dev_info(dev, verbose)
