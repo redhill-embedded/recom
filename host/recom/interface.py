@@ -7,7 +7,7 @@ class RecomInterface:
         self._handle = interfaceHandle
 
     def __repr__(self):
-        return f"Interface: {self.name} (Sub={self._handle.subclass}/Prot={self._handle.protocol})"
+        return f"Interface: {self.name} (Sub={self._handle.itf_subclass}/Prot={self._handle.itf_protocol})"
 
     def read(self, dataLen=-1):
         """
