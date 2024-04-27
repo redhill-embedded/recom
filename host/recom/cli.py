@@ -42,8 +42,7 @@ def list_devices(device_id, serial, verbose):
         print(f'Find by DeviceID - {device_id}')
         try:
             dev = RecomDevice(id=device_id)
-        except RecomDeviceException as dev_exp:
-            print(dev_exp)
+        except RecomDeviceException:
             return
 
     print_recom_dev_info(dev, verbose)
@@ -58,7 +57,7 @@ def run_scan(verbose):
     for s_dev in dev_list:
         try:
             dev = RecomDevice(device=s_dev)
-        except Exception as exp:
+        except Exception:
             pass
         else:
             print_recom_dev_info(dev, verbose)

@@ -10,8 +10,8 @@ class RecomBackend:
         raise NotImplementedError
     
     @classmethod
-    def find(cls, **kwargs):
-        raise NotImplementedError
+    def find(cls, **kwargs) -> list:
+        return []
     
     def get_interfacelist(self):
         raise NotImplementedError

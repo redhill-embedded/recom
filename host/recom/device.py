@@ -17,8 +17,25 @@ class BASE_DEV_CMDS(enum.IntEnum):
     CMD_GET_INTERFACES  = 0x06,
 
 class RecomDeviceException(Exception):
-    pass
+    class NoDeviceFound(Exception):
+        pass
+
+    class MultipleDevicesFound(Exception):
+        pass
+
+    class InterfaceNotFound(Exception):
+        pass
+
+    class InterfaceNumOutOfRange(Exception):
+        pass
+
+    class NotARecomDevice(Exception):
+        pass
+
+
 class BaseDevice:
+
+    _comsBackend = None
 
     def __init__(self, device):
         self._interfaces = []
@@ -26,7 +43,8 @@ class BaseDevice:
         self._comsBackend.open()
 
     def __del__(self):
-        self._comsBackend.close()
+        if self._comsBackend:
+            self._comsBackend.close()
 
     def __repr__(self):
         return repr(self._comsBackend)
@@ -51,14 +69,14 @@ class BaseDevice:
         """Finds an interface based on its ID and returns its handle"""
         itf = self._comsBackend.get_interface(itf_id)
         if itf is None:
-            raise RecomDeviceException("Interface not found")
+            raise RecomDeviceException.InterfaceNotFound
         return RecomInterface(self, itf)
 
     def getInterfaceHandleFromNumber(self, itf_num):
         """Finds an interface based on its number in the interface list and returns its handle"""
         itf_list = self._comsBackend.get_interface_list()
         if itf_num >= len(itf_list):
-            raise RecomDeviceException("Interface number out of range")
+            raise RecomDeviceException.InterfaceNumOutOfRange
         itf = self._comsBackend.get_interface(itf_list[itf_num])
         return RecomInterface(self, itf)
 
@@ -89,43 +107,34 @@ class RecomDevice(BaseDevice):
         # constraints paramters that will be used to find the device automatically.
         if "device" not in kwargs:
             # No device handle/object provided. Try to find a device using the provided constraints
-            dev = self._find_device(*kwargs)
+            dev = self._find_device(**kwargs)
             if dev is None:
-                raise RecomDeviceException("No device found")
+                raise RecomDeviceException.NoDeviceFound
         else:
             # Device handle/object provided. Use it
             dev = kwargs["device"]
         super().__init__(dev)
         recom_dev_info = self.getRecomDevID()
         if recom_dev_info is None:
-            raise RecomDeviceException("Device is not a recom device - Invalid ID response")
+            raise RecomDeviceException.NotARecomDevice("Invalid ID response")
         elif recom_dev_info["id"] != RECOM_DEV_ID:
-            raise RecomDeviceException("Device is not a recom device - ID mismatch")
+            raise RecomDeviceException.NotARecomDevice("ID mismatch")
         self.protocol_version = recom_dev_info["protocol_version"]
         self.recom_fw_version = recom_dev_info["version_string"]
 
 
     def _find_device(self, **kwargs):
-        if "serial" in kwargs:
-            # Check if we have a USB device with the specified serial
-            dev = find_device_by_serial(serial)
-            if dev is not None:
-                return dev
-            # Next, check if there is a serial device with the specified serial
-            #dev = find_serial_device_by_serial(serial)
-            return dev
-        elif device_id is not None:
-            # Check if we can find a USB device with the specified device_id (VID:PID in this case)
-            dev = find_device_by_id(device_id)
-            if dev is not None:
-                if len(dev) > 1:
-                    raise RecomDeviceException("More than one device found!")
-                elif len(dev) == 1:
-                    return dev[0]
-            # No USB devices found, now try to find serial devices with the specified device_id (port ID)
-            #dev = find_serial_device_by_com_port(device_id)
-            return dev
-
+        # Loop through the backends and let them do the work finding device(s) based on
+        # the provided device constraints
+        dev_list = []
+        for be in backends:
+            dev_list.extend(be.find(**kwargs))
+        if dev_list is []:
+            raise RecomDeviceException.NoDeviceFound
+        if len(dev_list) > 1:
+            print(dev_list)
+            raise RecomDeviceException.MultipleDevicesFound
+        return dev_list[0]
 
     def reset(self):
         pass

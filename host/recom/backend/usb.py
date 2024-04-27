@@ -23,15 +23,13 @@ def _find_usb_devices(vid=None, pid=None, find_all=False):
         elif pid:
             if dev.getProductID() == pid:
                 dev_match = dev
-        if find_all:
-            # Add all found devices to list
-            if dev_match:
-                dev_list.append(dev_match)
-        else:
-            # Return first match
-            return dev_list
-    if not dev_list:
-        return None
+        if dev_match:
+            if find_all:
+                # Add all found devices to list
+                dev_list.append(USBDevice(dev_match))
+            else:
+                # Return first match
+                return USBDevice(dev_match)
     return dev_list
 
 def find_device_by_id(vid_pid):
@@ -88,6 +86,8 @@ class CTRL_REQ(enum.IntEnum):
 
 class USBDevice(RecomBackend):
 
+    CLASS_VENDOR = 255
+
     def __init__(self, device_handle):
         self.handle = device_handle
         self.dev = None
@@ -101,7 +101,7 @@ class USBDevice(RecomBackend):
         return "usb"
 
     @classmethod
-    def find(cls, **kwargs):
+    def find(cls, **kwargs) -> list:
         """Returns a list of all USB devices matching the provided constraings.
 
         If no constraints are provided, all USB devices will be returned.
@@ -115,10 +115,13 @@ class USBDevice(RecomBackend):
 
     def open(self):
         self.dev = self.handle.open()
-        #for cfg in self.dev:
-        #    for itf in cfg:
-        #        self.interfaces.append(USBInterface(self.dev, itf))
-        #self.dev.set_configuration(1)
+
+        # Find all interfaces
+        for config in self.handle.iterConfigurations():
+            for interface in config.iterInterfaces():
+                for setting in interface.iterSettings():
+                    if setting.getClass() == self.CLASS_VENDOR:
+                        self.interfaces.append(USBInterface(self.dev, setting))
 
     def close(self):
         if self.dev:
@@ -133,8 +136,8 @@ class USBDevice(RecomBackend):
     def get_interface_list(self):
         itf_list = []
         for itf in self.interfaces:
-            itf_list.append([itf.desc.bInterfaceClass, itf.desc.bInterfaceSubClass,
-                             itf.desc.bInterfaceProtocol, itf.itf_str])
+            itf_list.append([itf.itf_class, itf.itf_subclass,
+                             itf.itf_protocol, itf.itf_str])
         return itf_list
 
     def get_interface(self, itf_identifier):
@@ -144,8 +147,8 @@ class USBDevice(RecomBackend):
         elif isinstance(itf_identifier, tuple):
             # Interface subclass/protocol tuple
             for itf in self.interfaces:
-                if itf.desc.bInterfaceSubClass == itf_identifier[0] and \
-                   itf.desc.bInterfaceProtocol == itf_identifier[1]:
+                if itf.itf_subclass == itf_identifier[0] and \
+                   itf.itf_protocol == itf_identifier[1]:
                     return itf
         elif isinstance(itf_identifier, str):
             # Interface description string
@@ -157,39 +160,42 @@ class USBDevice(RecomBackend):
 
 class USBInterface():
 
-    def __init__(self, dev_handle, itf_desc):
+    EP_ATTR_CONTROL = 0
+    EP_ATTR_ISO = 1
+    EP_ATTR_BULK = 2
+    EP_ATTR_INT = 3
+
+    def __init__(self, dev_handle, itf_setting):
         self.dev = dev_handle
-        self.desc = itf_desc
-        self.itf_idx = itf_desc.bInterfaceNumber
-        interface = usb.core.Interface(self.dev, self.itf_idx)
-        self.eps = []
-        self.ep_in = usb.util.find_descriptor(interface, custom_match = lambda e: \
-                                            usb.util.endpoint_direction(e.bEndpointAddress) == \
-                                            usb.util.ENDPOINT_IN)
-        self.ep_out = usb.util.find_descriptor(interface, custom_match = lambda e: \
-                                            usb.util.endpoint_direction(e.bEndpointAddress) == \
-                                            usb.util.ENDPOINT_OUT)
-        self.subclass = self.desc.bInterfaceSubClass
-        self.protocol = self.desc.bInterfaceProtocol
-        self.itf_str = usb.util.get_string(self.dev, self.desc.iInterface)
+        self.itf = itf_setting
+        self.itf_idx = itf_setting.getNumber()
+        self.itf_class = self.itf.getClass()
+        self.itf_subclass = self.itf.getSubClass()
+        self.itf_protocol = self.itf.getProtocol()
+        (lang_id, ) = self.dev.getSupportedLanguageList()
+        str_desc_idx = itf_setting.getDescriptor()
+        self.itf_str = self.dev.getStringDescriptor(str_desc_idx, lang_id)
+
+        self.ep_out, self.ep_in = sorted(ep.getAddress() for ep in self.itf.iterEndpoints())
+
 
     def __repr__(self):
         return "%s: Subclass=%d, Protocol=%d, EP_OUT=0x%02X, EP_IN=0x%02X" % \
-                    (self.itf_str, self.subclass, self.protocol, self.ep_out.bEndpointAddress,
-                                                                 self.ep_in.bEndpointAddress)
+                    (self.itf_str, self.itf_subclass, self.itf_protocol,
+                     self.ep_out, self.ep_in)
 
     @property
     def itf_string(self):
         return self.itf_str
 
     def controlRead(self, request, value=0, index=0, dataLen=512, timeout=1000):
-        return self.dev.ctrl_transfer(CTRL_REQ.INTERFACE_VENDOR_IN, request, value, index, dataLen, timeout)
+        return self.dev.controlRead(CTRL_REQ.INTERFACE_VENDOR_IN, request, value, index, dataLen, timeout)
 
     def controlWrite(self, request, data=b'', value=0, index=0, timeout=1000):
-        return self.dev.ctrl_transfer(CTRL_REQ.INTERFACE_VENDOR_OUT, request, value, index, data, timeout)
+        return self.dev.controlWrite(CTRL_REQ.INTERFACE_VENDOR_OUT, request, value, index, data, timeout)
 
     def read(self, dataLen=64, timeout=1000):
-        return self.ep_in.read(dataLen, timeout)
+        return self.dev.bulkRead(self.ep_in, dataLen, timeout)
 
     def write(self, data, timeout=1000):
-        return self.ep_out.write(data, timeout)
+        return self.dev.bulkWrite(self.ep_out, data, timeout)
