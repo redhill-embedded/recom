@@ -5,11 +5,6 @@
 #include "recom_defs.h"
 #include "recom_git_version.h"
 
-static const uint32_t hw_id = 0x00005422;
-static const uint32_t hw_rev = 0x00000001;
-static const char * fw_rev = "v0.0.1-52d46fa2b";
-static const char * serial = "This is a serial number";
-
 __attribute__((weak)) uint32_t rec_device_hw_id_cb(void)
 {
     return 0;
