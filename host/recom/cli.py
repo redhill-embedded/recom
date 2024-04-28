@@ -179,11 +179,12 @@ def cli(argv):
             # Unknown arguments are present. Assume the first one is the reset option
             rst_opt = int(remaining_args[0])
         else:
-            print("No reset option provided. Defaulting to rebooting device.")
+            print("No reset option provided. Defaulting to rebooting device to application.")
             rst_opt = RESET.RCM_DEV_RST_REBOOT
         if args.device is not None or args.serial is not None:
+            reset_device(rst_opt, args.device, args.serial)
+        else:
             print("Please provide either a device ID or a device serial number")
-        reset_device(rst_opt, args.device, args.serial)
     elif args.cmd == "env":
         diag_env(args.report)
     elif args.cmd == "usb_diag":
