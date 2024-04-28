@@ -19,7 +19,7 @@ setup(
         ]
     },
     python_requires=">=3.8",
-    install_requires=["pyusb", "pyserial"],
+    install_requires=["libusb1", "pyserial"],
     entry_points={
         "console_scripts": [
             "recom=recom.__main__:main",
