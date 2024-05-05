@@ -217,7 +217,7 @@ static bool recom_usbd_control_xfer_cb(__unused uint8_t rhport, uint8_t stage, c
                 }
                 return false;
             } else if (request->wLength > p_itf->rx_buffer_size) {
-                /* The host is sending us more data that we can handle. Reject it! */
+                /* The host is sending us more data than we can handle. Reject it! */
                 return false;
             } else {
                 /* 
@@ -233,6 +233,8 @@ static bool recom_usbd_control_xfer_cb(__unused uint8_t rhport, uint8_t stage, c
              * We have received a request with data. Process it.
              * NOTE: That data reception was initiated by the SETUP stage above.
              */
+            rec_ctrl_msg.buffer = p_itf->rx_buffer;
+            rec_ctrl_msg.data_len = request->wLength;
             if (p_itf->ctrl_cb != NULL) {
                 return p_itf->ctrl_cb(p_itf->itf_num, NULL, &rec_ctrl_msg, false);
             }
