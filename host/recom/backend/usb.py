@@ -178,6 +178,8 @@ class USBInterface():
 
         self.ep_out, self.ep_in = sorted(ep.getAddress() for ep in self.itf.iterEndpoints())
 
+        self.dev.claimInterface(self.itf.getNumber())
+
 
     def __repr__(self):
         return "%s: Subclass=%d, Protocol=%d, EP_OUT=0x%02X, EP_IN=0x%02X" % \
