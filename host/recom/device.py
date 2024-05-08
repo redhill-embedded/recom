@@ -100,10 +100,14 @@ class BaseDevice:
         data = self._comsBackend.read(BASE_DEV_CMDS.CMD_FW_REV)
         return ''.join(chr(x) for x in data)
 
-    def getSerial(self):
-        # The device serial number is a string
-        data = self._comsBackend.read(BASE_DEV_CMDS.CMD_SERIAL)
+    def getSerialString(self, index=0):
+        # The serial number at index as a string
+        data = self._comsBackend.read(BASE_DEV_CMDS.CMD_SERIAL, index=index)
         return ''.join(chr(x) for x in data)
+
+    def getSerialBytes(self, index=0):
+        # The serial number at index as a byte array
+        return self._comsBackend.read(BASE_DEV_CMDS.CMD_SERIAL, index=index)
 
     def sendReset(self, reset: int):
         # Send a reset command
@@ -139,7 +143,7 @@ class RecomDevice(BaseDevice):
         dev_list = []
         for be in backends:
             dev_list.extend(be.find(**kwargs))
-        if dev_list is []:
+        if dev_list == []:
             raise RecomDeviceException.NoDeviceFound
         if len(dev_list) > 1:
             print(dev_list)
@@ -161,9 +165,11 @@ class RecomDevice(BaseDevice):
     def fw_revision(self):
         return self.getFwRev()
 
-    @property
-    def serial(self):
-        return self.getSerial()
+    def get_serial(self, index=0, format="string"):
+        if (format == "bytes"):
+            return self.getSerialBytes(index=index)
+        else:
+            return self.getSerialString(index=index)
 
     @classmethod
     def scan(cls):

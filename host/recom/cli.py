@@ -22,7 +22,7 @@ def print_recom_dev_info(dev, verbose):
         # Device information
         print("  HW ID/Rev: 0x%04X / 0x%04X" % (dev.hw_id, dev.hw_revision))
         print("  FW Rev: %s" % dev.fw_revision)
-        print("  Serial: %s" % dev.serial)
+        print("  Serial: %s" % dev.get_serial())
         print("\n  Interfaces:")
         interfaces = dev.getAllInterfaces()
         for itf in interfaces:

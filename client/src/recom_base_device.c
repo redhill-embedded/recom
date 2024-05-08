@@ -20,9 +20,10 @@ __attribute__((weak)) const char * rec_device_fw_rev_cb(void)
     return "0.0.0";
 }
 
-__attribute__((weak)) const char * rec_device_serial_cb(void)
+__attribute__((weak)) size_t rec_device_serial_cb(uint8_t index, char **p_serial)
 {
-    return "0";
+    *p_serial = &("0");
+    return 1;
 }
 
 __attribute__((weak)) bool rec_device_reset_cb(uint8_t reset_option)
@@ -35,7 +36,7 @@ bool rec_bdev_process_msg(struct rec_transport_control *ctrl, struct rec_message
 {
     uint16_t data_len;
     uint32_t temp32;
-    const char * p_str;
+    char * p_str;
 
     switch (msg->cmd) {
     
@@ -45,7 +46,7 @@ bool rec_bdev_process_msg(struct rec_transport_control *ctrl, struct rec_message
             memcpy(msg->buffer, (uint8_t *) &recom_dev_id, 4);
             uint16_t recom_prot_ver = RECOM_PROTOCOL_VER;
             memcpy(&msg->buffer[4], (uint8_t *) &recom_prot_ver, 2);
-            strcpy(&msg->buffer[6], RECOM_GIT_VERSION);
+            strcpy((char *) &msg->buffer[6], RECOM_GIT_VERSION);
             msg->data_len = 6 + strlen(RECOM_GIT_VERSION);
             return true;
         } else {
@@ -93,12 +94,11 @@ bool rec_bdev_process_msg(struct rec_transport_control *ctrl, struct rec_message
 
     case REC_BDEV_CMD_SERIAL:
         if (read) {
-            p_str = rec_device_serial_cb();
-            data_len = strlen(p_str);
-            if (data_len >= ctrl->max_data_len) {
+            data_len = rec_device_serial_cb(msg->index, &p_str);
+            if (data_len >= ctrl->max_data_len || data_len == 0) {
                 return false;
             }
-            strlcpy((char *) msg->buffer, p_str, ctrl->max_data_len);
+            memcpy((char *) msg->buffer, p_str, ctrl->max_data_len);
             msg->data_len = data_len;
             return true;
         } else {
