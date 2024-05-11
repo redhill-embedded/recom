@@ -174,3 +174,7 @@ class RecomDevice(BaseDevice):
     @classmethod
     def scan(cls):
         pass
+
+    @property
+    def device_path(self):
+        self._comsBackend.get_device_path()
