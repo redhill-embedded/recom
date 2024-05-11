@@ -2,6 +2,9 @@
 
 #include "cdc_uart.h"
 #include "recom_usb.h"
+#include "tusb_config.h"
+
+static recom_cdc_uart_itf_count = 0;
 
 typedef struct cdc_itf_desc {
     tusb_desc_interface_assoc_t assoc;
@@ -115,5 +118,37 @@ uint8_t recom_usb_cdc_interface_register(struct rec_itf_config *itf_cfg)
         },
     };
 
+    /* Keep track of how many CDC interfaces have been registered and make sure that we
+     * don't exceed the number of actual CDC interfaces configured with the TinyUSB stack.
+     */
+    recom_cdc_uart_itf_count++;
+    if (recom_cdc_uart_itf_count > CFG_TUD_CDC)
+        return false;
+
     return recom_usb_add_interface(NULL, &cdc_itf_desc, sizeof(cdc_itf_desc), itf_cfg->app_str);
+}
+
+bool recom_usb_cdc_interface_write(uint8_t intf, uint8_t *p_data, uint32_t num_bytes)
+{
+    uint32_t bytes_written;
+
+    bytes_written = tud_cdc_n_write(itf, p_data, num_bytes);
+    if (bytes_written != num_bytes)
+        return false;
+    return true;
+}
+
+uint32_t recom_usb_cdc_interface_bytes_available(uint8_t intf)
+{
+    return tud_cdc_n_available(intf);
+}
+
+bool recom_usb_cdc_interface_read(uint8_t intf, uint8_t *p_data, uint32_t num_bytes)
+{
+    uint32_t bytes_read;
+
+    bytes_read = tud_cdc_n_read(itf, p_data, num_bytes);
+    if (bytes_read != num_bytes)
+        return false;
+    return true;
 }
