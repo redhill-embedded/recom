@@ -100,7 +100,7 @@ static bool recom_usb_add_interface_descriptor(const void *itf_desc, uint32_t it
         return false;
 
     /* 
-     * Get pointer to next available location in descriptor attay and copy the new
+     * Get pointer to next available location in descriptor array and copy the new
      * interface descriptor to that location.
      */
     uint8_t *desc = &desc_configuration[conf_desc_idx];
@@ -118,7 +118,7 @@ static bool recom_usb_add_interface_descriptor(const void *itf_desc, uint32_t it
         if (desc[1] == TUSB_DESC_INTERFACE) {
             /* Update the interface number */
             tusb_desc_interface_t *desc_intf = (tusb_desc_interface_t *)desc;
-            desc_intf->bInterfaceNumber = intf_idx++;
+            desc_intf->bInterfaceNumber = intf_idx;
             desc_intf->iInterface = ITF_IDX_OFFSET(num_interfaces) + 1;
         } else if (desc[1] == TUSB_DESC_ENDPOINT) {
             /* Update the endpoint address */
@@ -128,6 +128,19 @@ static bool recom_usb_add_interface_descriptor(const void *itf_desc, uint32_t it
             } else {
                 desc_ep->bEndpointAddress = ep_out_idx++ | TUD_EP_OUT;
             }
+        } else if (desc[1] == TUSB_DESC_INTERFACE_ASSOCIATION){
+            /* Update the interface number */
+            tusb_desc_interface_assoc_t *desc_assoc = (tusb_desc_interface_assoc_t *)desc;
+            desc_assoc->bFirstInterface = intf_idx;
+        } else if (desc[1] == TUSB_DESC_CS_INTERFACE && desc[2] == CDC_FUNC_DESC_CALL_MANAGEMENT) {
+            /* Update the interface number */
+            cdc_desc_func_call_management_t *desc_call = (cdc_desc_func_call_management_t *)desc;
+            desc_call->bDataInterface = intf_idx;
+        } else if (desc[1] == TUSB_DESC_CS_INTERFACE && desc[2] == CDC_FUNC_DESC_UNION) {
+            /* Update the interface number */
+            cdc_desc_func_union_t *desc_union = (cdc_desc_func_union_t *)desc;
+            desc_union->bControlInterface = intf_idx;
+            desc_union->bSubordinateInterface = intf_idx;
         } else {
             printf("Unknown descriptor type %d\n", desc[1]);
         }
@@ -135,6 +148,9 @@ static bool recom_usb_add_interface_descriptor(const void *itf_desc, uint32_t it
         desc += desc[0];            /* Adcance pointer to configuration descriptor */
         itf_desc_consumed += desc[0];   /* Update the nubmer of bytes consumed */
     }
+
+    /* Increase the interface index once the entire interface descriptor has been processed. */
+    intf_idx++;
 
     /* Finally update the config descriptor itself */
     tusb_desc_configuration_t *desc_config = (tusb_desc_configuration_t *)desc_configuration;
@@ -404,8 +420,11 @@ bool recom_usb_add_interface(usbd_class_driver_t* drv,
      * TinyUSB expects a pointer to a memory section where these vendor drivers reside in a
      * consecutive manner. Therefore we cannot simply track them using pointers, but need to
      * copy them into an internal driver array.
+     * If this interface doesn't have a vendor driver (i.e uses an existing TinyUSB driver)
+     * and is set to null, then just skip this.
      */
-    memcpy(&interface_class_drivers[num_interfaces], drv, sizeof(usbd_class_driver_t));
+    if (drv != NULL) 
+        memcpy(&interface_class_drivers[num_interfaces], drv, sizeof(usbd_class_driver_t));
 
     /*
      * Attempt to add the interface descriptor.
