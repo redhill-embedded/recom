@@ -1,6 +1,6 @@
 #include <tusb.h>
 
-#include "cdc_uart.h"
+#include "recom_usb_cdc_interface.h"
 #include "recom_usb.h"
 #include "tusb_config.h"
 
@@ -132,9 +132,10 @@ bool recom_usb_cdc_interface_write(uint8_t intf, uint8_t *p_data, uint32_t num_b
 {
     uint32_t bytes_written;
 
-    bytes_written = tud_cdc_n_write(itf, p_data, num_bytes);
+    bytes_written = tud_cdc_n_write(intf, p_data, num_bytes);
     if (bytes_written != num_bytes)
         return false;
+    tud_cdc_n_write_flush(intf);
     return true;
 }
 
@@ -147,7 +148,7 @@ bool recom_usb_cdc_interface_read(uint8_t intf, uint8_t *p_data, uint32_t num_by
 {
     uint32_t bytes_read;
 
-    bytes_read = tud_cdc_n_read(itf, p_data, num_bytes);
+    bytes_read = tud_cdc_n_read(intf, p_data, num_bytes);
     if (bytes_read != num_bytes)
         return false;
     return true;

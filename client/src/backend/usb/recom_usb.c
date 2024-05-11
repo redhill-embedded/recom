@@ -18,6 +18,7 @@
 #define ITF_IDX_OFFSET(num_itf)     (num_itf + 3)
 
 static uint8_t num_interfaces = 0;
+static uint8_t num_drivers = 0;
 static usbd_class_driver_t interface_class_drivers[RECOM_MAX_INTERFACES] = {};
 
 /*
@@ -118,7 +119,7 @@ static bool recom_usb_add_interface_descriptor(const void *itf_desc, uint32_t it
         if (desc[1] == TUSB_DESC_INTERFACE) {
             /* Update the interface number */
             tusb_desc_interface_t *desc_intf = (tusb_desc_interface_t *)desc;
-            desc_intf->bInterfaceNumber = intf_idx;
+            desc_intf->bInterfaceNumber = intf_idx++;
             desc_intf->iInterface = ITF_IDX_OFFSET(num_interfaces) + 1;
         } else if (desc[1] == TUSB_DESC_ENDPOINT) {
             /* Update the endpoint address */
@@ -135,11 +136,11 @@ static bool recom_usb_add_interface_descriptor(const void *itf_desc, uint32_t it
         } else if (desc[1] == TUSB_DESC_CS_INTERFACE && desc[2] == CDC_FUNC_DESC_CALL_MANAGEMENT) {
             /* Update the interface number */
             cdc_desc_func_call_management_t *desc_call = (cdc_desc_func_call_management_t *)desc;
-            desc_call->bDataInterface = intf_idx;
+            desc_call->bDataInterface = intf_idx - 1;
         } else if (desc[1] == TUSB_DESC_CS_INTERFACE && desc[2] == CDC_FUNC_DESC_UNION) {
             /* Update the interface number */
             cdc_desc_func_union_t *desc_union = (cdc_desc_func_union_t *)desc;
-            desc_union->bControlInterface = intf_idx;
+            desc_union->bControlInterface = intf_idx - 1;
             desc_union->bSubordinateInterface = intf_idx;
         } else {
             printf("Unknown descriptor type %d\n", desc[1]);
@@ -148,9 +149,6 @@ static bool recom_usb_add_interface_descriptor(const void *itf_desc, uint32_t it
         desc += desc[0];            /* Adcance pointer to configuration descriptor */
         itf_desc_consumed += desc[0];   /* Update the nubmer of bytes consumed */
     }
-
-    /* Increase the interface index once the entire interface descriptor has been processed. */
-    intf_idx++;
 
     /* Finally update the config descriptor itself */
     tusb_desc_configuration_t *desc_config = (tusb_desc_configuration_t *)desc_configuration;
@@ -364,7 +362,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage,
 const usbd_class_driver_t *usbd_app_driver_get_cb(uint8_t *countp)
 {
     printf("USBD: Get driver CB!\n\r");
-    *countp = num_interfaces;
+    *countp = num_drivers;
     return (const usbd_class_driver_t *) interface_class_drivers;
 }
 
@@ -423,8 +421,11 @@ bool recom_usb_add_interface(usbd_class_driver_t* drv,
      * If this interface doesn't have a vendor driver (i.e uses an existing TinyUSB driver)
      * and is set to null, then just skip this.
      */
-    if (drv != NULL) 
+    if (drv != NULL) {
         memcpy(&interface_class_drivers[num_interfaces], drv, sizeof(usbd_class_driver_t));
+        num_drivers++;
+    }
+
 
     /*
      * Attempt to add the interface descriptor.
