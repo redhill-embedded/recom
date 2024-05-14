@@ -4,7 +4,7 @@
 #include "recom_usb.h"
 #include "tusb_config.h"
 
-static recom_cdc_uart_itf_count = 0;
+static uint8_t recom_cdc_uart_itf_count = 0;
 
 typedef struct cdc_itf_desc {
     tusb_desc_interface_assoc_t assoc;
