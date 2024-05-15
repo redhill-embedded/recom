@@ -6,8 +6,6 @@ import sysconfig
 import subprocess
 from datetime import datetime
 
-import usb.core
-
 import recom
 from recom.device import RecomDevice, RecomDeviceException
 from recom.device import RESET
@@ -133,19 +131,6 @@ def diag_env(save_report=False):
             f.write("\tCompiler Flags: {}\n".format(sys.flags))
             f.write("\tPy_ENABLE_SHARED: {}\n".format(sysconfig.get_config_var('Py_ENABLE_SHARED')))
 
-def diag_usb():
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    log_file_path = os.path.join(script_dir, "pyusb_debug.log")
-    os.environ["PYUSB_DEBUG"] = "debug"  # Enable debug logging for pyusb
-    os.environ["PYUSB_LOG_FILENAME"] = log_file_path  # Set the log file path
-    os.environ["PYUSB_BACKEND"] = "libusb"  # Set the backend to libusb
-    try:
-        usb.core.find()  # Attempt to initialize pyusb with the libusb backend
-    except Exception as e:
-        print(f"ERROR: Pyusb failed => {e}")
-    else:
-        print("PyUSB is OK!")
-
 def print_info():
     print(f"\n*****\nWelcome to Recom {recom.__version__}")
     print("\nRecom is most useful as an API to interract with Recom-enabled boards, but there are")
@@ -187,7 +172,5 @@ def cli(argv):
             print("Please provide either a device ID or a device serial number")
     elif args.cmd == "env":
         diag_env(args.report)
-    elif args.cmd == "usb_diag":
-        diag_usb()
     else:
         print_info()
