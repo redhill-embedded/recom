@@ -1,38 +1,48 @@
 import enum
-
 import usb1
 
-from recom.backend.backend import RecomBackend
+from recom.backend.backend import RecomBackend, RecomDeviceDescriptor
 
-_usb_ctx = None
+def _to_device_descriptor(device)-> RecomDeviceDescriptor:
+    device_id = (device.getVendorID(), device.getProductID())
+    device_path = (device.getPortNumberList(),)
+    return RecomDeviceDescriptor("usb", device_id, device_path)
+
+def _device_is_hub(device):
+    # Check if the device class code is 0x09 (Hub) and subclass code is 0x00
+    return device.getDeviceClass() == 0x09 and device.getDeviceSubClass() == 0x00
 
 def _find_usb_devices(vid=None, pid=None, find_all=False):
-    global _usb_ctx
     dev_list = []
-    if _usb_ctx is None:
-        _usb_ctx = usb1.USBContext()
-        _usb_ctx.open()
-    for dev in _usb_ctx.getDeviceList():
-        dev_match = None
-        if vid and pid:
-            if dev.getVendorID() == vid and dev.getProductID() == pid:
-                dev_match = dev
-        elif vid:
-            if dev.getVendorID() == vid:
-                dev_match = dev
-        elif pid:
-            if dev.getProductID() == pid:
-                dev_match = dev
-        if dev_match:
-            if find_all:
-                # Add all found devices to list
-                dev_list.append(USBDevice(dev_match))
-            else:
-                # Return first match
-                return USBDevice(dev_match)
-    return dev_list
+    with usb1.USBContext() as ctx:
+        for dev in ctx.getDeviceList():
+            dev_match = None
+            if vid and pid:
+                if dev.getVendorID() == vid and dev.getProductID() == pid:
+                    dev_match = dev
+            elif vid:
+                if dev.getVendorID() == vid:
+                    dev_match = dev
+            elif pid:
+                if dev.getProductID() == pid:
+                    dev_match = dev
+            if dev_match:
+                if find_all:
+                    # Add all found devices to list
+                    be_dev = _to_device_descriptor(dev_match)
+                    dev_list.append(be_dev)
+                else:
+                    # Return first match
+                    return _to_device_descriptor(dev_match)
+        return dev_list
 
 def find_device_by_id(vid_pid):
+    """Helper function to find a USB device based on its VID/PID combination.
+
+    The VID/PID can be either a string or a tuple. If there are multiple
+    devices matching the specified VID/PID, a list of all matches is returned.
+    If no matches are found, None is returned.
+    """
     if isinstance(vid_pid, tuple):
         vid = vid_pid[0]
         pid = vid_pid[1]
@@ -52,30 +62,45 @@ def find_device_by_id(vid_pid):
         return _find_usb_devices(find_all=True, pid=pid)
     return None
 
-def find_device_by_serial(serial):
-    global _usb_ctx
-    if _usb_ctx is None:
-        _usb_ctx = usb1.USBContext()
-        _usb_ctx.open()
-    for device in _usb_ctx.getDeviceIterator(skip_on_error=True):
-        if device.getSerialNumber() == serial:
-            return device
+def find_device_by_serial(serial: str)-> RecomDeviceDescriptor:
+    """Helper function to find a device by its serial number.
 
-def device_is_hub(device):
-    # Check if the device class code is 0x09 (Hub) and subclass code is 0x00
-    return device.getDeviceClass() == 0x09 and device.getDeviceSubClass() == 0x00
+    If there are more than one USB device matching the serial number,
+    only the first match will be returned.
+    If there are no matches, None is returned.
+    """
+    with usb1.USBContext() as ctx:
+        for device in ctx.getDeviceIterator(skip_on_error=True):
+            if device.getSerialNumber() == serial:
+                return _to_device_descriptor(device)
+        return None
 
+def get_all_usb_devices()-> list:
+    """Helper function to get a list of all connected USB devices
 
-def get_all_usb_devices():
-    global _usb_ctx
-    if _usb_ctx is None:
-        _usb_ctx = usb1.USBContext()
-        _usb_ctx.open()
-    dev_list = []
-    for dev in _usb_ctx.getDeviceList():
-        if not device_is_hub(dev):
-            dev_list.append(USBDevice(dev))
-    return dev_list
+    Devices in the list are represented as RecomDeviceDescriptor
+    objects.
+    If there are no devices present, and empty list is returned.
+    """
+    with usb1.USBContext() as ctx:
+        dev_list = []
+        for dev in ctx.getDeviceList():
+            if not _device_is_hub(dev):
+                be_dev = _to_device_descriptor(dev)
+                dev_list.append(be_dev)
+        return dev_list
+
+def get_vid_pid_on_port(port_path)-> tuple:
+    """Helper function to get the VID/PID of a connected device at the given
+    USB port path. The VID/PID is returned as a tuple
+
+    If no device is present at the specified path then this will return None.
+    """
+    with usb1.USBContext() as ctx:
+        for dev in ctx.getDeviceList():
+            if dev.getPortNumberList() == port_path:
+                return (dev.getVendorID(), dev.getProductID())
+    return None
 
 class CTRL_REQ(enum.IntEnum):
     DEVICE_VENDOR_OUT = 0x40
@@ -88,13 +113,35 @@ class USBDevice(RecomBackend):
 
     CLASS_VENDOR = 255
 
-    def __init__(self, device_handle):
-        self.handle = device_handle
+    def __init__(self, device_descriptor: RecomDeviceDescriptor):
+        self.usb_ctx = usb1.USBContext().open()
+        self.handle = self._get_dev_handle_from_descriptor(device_descriptor)
+        if self.handle is None:
+            raise Exception(f"Unable to find device {device_descriptor}")
         self.dev = None
         self.interfaces = []
 
+    def __del__(self):
+        self.usb_ctx.close()
+
     def __repr__(self):
         return "USB Device 0x%04X:0x%04X" % (self.handle.getVendorID(), self.handle.getProductID())
+
+    def _get_dev_handle_from_descriptor(self, descriptor):
+        if descriptor.type != 'usb':
+            return None
+        for dev in self.usb_ctx.getDeviceList():
+            try:
+                if dev.getPortNumberList() != descriptor.dev_path[0]:
+                    continue
+                if dev.getVendorID() != descriptor.dev_id[0]:
+                    continue
+                if dev.getProductID() != descriptor.dev_id[1]:
+                    continue
+                return dev
+            except Exception:
+                pass
+        return None
 
     @property
     def type(self):

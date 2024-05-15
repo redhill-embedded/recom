@@ -2,6 +2,7 @@
 import enum
 import struct
 from recom.backend import backends
+from recom.backend.backend import RecomDeviceDescriptor
 from recom.interface import RecomInterface
 
 # Recom device identifier. DO NOT CHANGE!
@@ -42,9 +43,18 @@ class BaseDevice:
 
     _comsBackend = None
 
-    def __init__(self, device):
+    def __init__(self, device_descriptor: RecomDeviceDescriptor):
         self._interfaces = []
-        self._comsBackend = device
+
+        # Loop through all backends and see if one can find a device based on
+        # the provided device descriptor
+        for be in backends:
+            cbe = be(device_descriptor)
+            if cbe is not None:
+                self._comsBackend = cbe
+                break
+        if self._comsBackend is None:
+            raise RecomDeviceException.NoDeviceFound()
         self._comsBackend.open()
 
     def __del__(self):
@@ -125,7 +135,7 @@ class RecomDevice(BaseDevice):
             if dev is None:
                 raise RecomDeviceException.NoDeviceFound
         else:
-            # Device handle/object provided. Use it
+            # Device descriptor provided. Use it
             dev = kwargs["device"]
         super().__init__(dev)
         recom_dev_info = self.getRecomDevID()

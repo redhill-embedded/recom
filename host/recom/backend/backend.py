@@ -1,3 +1,11 @@
+from dataclasses import dataclass
+
+
+@dataclass
+class RecomDeviceDescriptor:
+    type: str
+    dev_id: tuple
+    dev_path: tuple
 
 
 class RecomBackend:
