@@ -5,15 +5,38 @@
 #include "recom_defs.h"
 #include "recom_git_version.h"
 
-static const uint32_t hw_id = 0x00005422;
-static const uint32_t hw_rev = 0x00000001;
-static const char * fw_rev = "v0.0.1-52d46fa2b";
-static const char * serial = "This is a serial number";
+__attribute__((weak)) uint32_t rec_device_hw_id_cb(void)
+{
+    return 0;
+}
+
+__attribute__((weak)) uint32_t rec_device_hw_rev_cb(void)
+{
+    return 0;
+}
+
+__attribute__((weak)) const char * rec_device_fw_rev_cb(void)
+{
+    return "0.0.0";
+}
+
+__attribute__((weak)) size_t rec_device_serial_cb(uint8_t index, char **p_serial)
+{
+    *p_serial = &("0");
+    return 1;
+}
+
+__attribute__((weak)) bool rec_device_reset_cb(uint8_t reset_option)
+{
+    return false;
+}
 
 
 bool rec_bdev_process_msg(struct rec_transport_control *ctrl, struct rec_message *msg, bool read)
 {
     uint16_t data_len;
+    uint32_t temp32;
+    char * p_str;
 
     switch (msg->cmd) {
     
@@ -23,7 +46,7 @@ bool rec_bdev_process_msg(struct rec_transport_control *ctrl, struct rec_message
             memcpy(msg->buffer, (uint8_t *) &recom_dev_id, 4);
             uint16_t recom_prot_ver = RECOM_PROTOCOL_VER;
             memcpy(&msg->buffer[4], (uint8_t *) &recom_prot_ver, 2);
-            strcpy(&msg->buffer[6], RECOM_GIT_VERSION);
+            strcpy((char *) &msg->buffer[6], RECOM_GIT_VERSION);
             msg->data_len = 6 + strlen(RECOM_GIT_VERSION);
             return true;
         } else {
@@ -34,8 +57,9 @@ bool rec_bdev_process_msg(struct rec_transport_control *ctrl, struct rec_message
 
     case REC_BDEV_CMD_HW_ID:
         if (read) {
-            memcpy(msg->buffer, (uint8_t *) &hw_id, sizeof(hw_id));
-            msg->data_len = sizeof(hw_id);
+            temp32 = rec_device_hw_id_cb();
+            memcpy(msg->buffer, (uint8_t *) &temp32, 4);
+            msg->data_len = 4;
             return true;
         } else {
             return false;
@@ -44,8 +68,9 @@ bool rec_bdev_process_msg(struct rec_transport_control *ctrl, struct rec_message
 
     case REC_BDEC_CMD_HW_REV:
         if (read) {
-            memcpy(msg->buffer, (uint8_t *) &hw_rev, sizeof(hw_rev));
-            msg->data_len = sizeof(hw_rev);
+            temp32 = rec_device_hw_rev_cb();
+            memcpy(msg->buffer, (uint8_t *) &temp32, 4);
+            msg->data_len = 4;
             return true;
         } else {
             return false;
@@ -54,11 +79,12 @@ bool rec_bdev_process_msg(struct rec_transport_control *ctrl, struct rec_message
 
     case REC_BDEV_CMD_FW_REV:
         if (read) {
-            data_len = strlen(fw_rev);
+            p_str = rec_device_fw_rev_cb();
+            data_len = strlen(p_str);
             if (data_len >= ctrl->max_data_len) {
                 return false;
             }
-            strlcpy((char *) msg->buffer, fw_rev, ctrl->max_data_len);
+            strlcpy((char *) msg->buffer, p_str, ctrl->max_data_len);
             msg->data_len = data_len;
             return true;
         } else {
@@ -66,13 +92,13 @@ bool rec_bdev_process_msg(struct rec_transport_control *ctrl, struct rec_message
         }
         break;
 
-    case REV_BDEV_CMD_SERIAL:
+    case REC_BDEV_CMD_SERIAL:
         if (read) {
-            data_len = strlen(serial);
-            if (data_len >= ctrl->max_data_len) {
+            data_len = rec_device_serial_cb(msg->index, &p_str);
+            if (data_len >= ctrl->max_data_len || data_len == 0) {
                 return false;
             }
-            strlcpy((char *) msg->buffer, serial, ctrl->max_data_len);
+            memcpy((char *) msg->buffer, p_str, ctrl->max_data_len);
             msg->data_len = data_len;
             return true;
         } else {
@@ -80,15 +106,18 @@ bool rec_bdev_process_msg(struct rec_transport_control *ctrl, struct rec_message
         }
         break;
 
-    case REV_BDEV_CMD_RESET:
+    case REC_BDEV_CMD_RESET:
         if (read) {
 
         } else {
+            if (msg->data_len == 1) {
+                return rec_device_reset_cb(msg->buffer[0]);
+            }
             return false;
         }
         break;
 
-    case REV_BDEV_CMD_GET_INTF:
+    case REC_BDEV_CMD_GET_INTF:
         if (read) {
 
         } else {

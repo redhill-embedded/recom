@@ -217,7 +217,7 @@ static bool recom_usbd_control_xfer_cb(__unused uint8_t rhport, uint8_t stage, c
                 }
                 return false;
             } else if (request->wLength > p_itf->rx_buffer_size) {
-                /* The host is sending us more data that we can handle. Reject it! */
+                /* The host is sending us more data than we can handle. Reject it! */
                 return false;
             } else {
                 /* 
@@ -233,6 +233,8 @@ static bool recom_usbd_control_xfer_cb(__unused uint8_t rhport, uint8_t stage, c
              * We have received a request with data. Process it.
              * NOTE: That data reception was initiated by the SETUP stage above.
              */
+            rec_ctrl_msg.buffer = p_itf->rx_buffer;
+            rec_ctrl_msg.data_len = request->wLength;
             if (p_itf->ctrl_cb != NULL) {
                 return p_itf->ctrl_cb(p_itf->itf_num, NULL, &rec_ctrl_msg, false);
             }
@@ -309,7 +311,7 @@ static usbd_class_driver_t recom_itf_drv = {
     .sof                = NULL,
 };
 
-uint8_t recom_usb_interface_register(struct rec_itf_config *itf_cfg)
+uint8_t recom_usb_generic_interface_register(struct rec_itf_config *itf_cfg)
 {
     struct rec_usb_itf_desc recom_itf_desc = {
         .itf = {
@@ -361,7 +363,7 @@ uint8_t recom_usb_interface_register(struct rec_itf_config *itf_cfg)
     return recom_usb_add_interface(&recom_itf_drv, &recom_itf_desc, sizeof(recom_itf_desc), itf_cfg->app_str);
 }
 
-bool recom_usb_interface_write(uint8_t itf_num, uint8_t *p_data, uint32_t num_bytes)
+bool recom_usb_generic_interface_write(uint8_t itf_num, uint8_t *p_data, uint32_t num_bytes)
 {
     uint8_t itf_idx;
     struct rec_usb_intf *p_itf;
@@ -384,12 +386,12 @@ bool recom_usb_interface_write(uint8_t itf_num, uint8_t *p_data, uint32_t num_by
     return usbd_edpt_xfer(TUD_OPT_RHPORT, p_itf->ep_in, p_itf->epin_buf, num_bytes);
 }
 
-uint32_t recom_usb_interface_bytes_available(uint8_t intf)
+uint32_t recom_usb_generic_interface_bytes_available(uint8_t intf)
 {
     return 0;
 }
 
-bool recom_usb_interface_read(uint8_t intf, uint8_t *p_data, uint32_t num_bytes)
+bool recom_usb_generic_interface_read(uint8_t intf, uint8_t *p_data, uint32_t num_bytes)
 {
     return true;
 }

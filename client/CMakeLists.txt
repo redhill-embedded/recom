@@ -5,7 +5,8 @@ set(RECOM_SOURCES
     ${RECOM_BASE_DIR}/src/recom.c
     ${RECOM_BASE_DIR}/src/recom_base_device.c
     ${RECOM_BASE_DIR}/src/backend/usb/recom_usb.c
-    ${RECOM_BASE_DIR}/src/backend/usb/recom_usb_interface.c
+    ${RECOM_BASE_DIR}/src/backend/usb/recom_usb_generic_interface.c
+    ${RECOM_BASE_DIR}/src/backend/usb/recom_usb_cdc_interface.c
     PARENT_SCOPE
 )
 

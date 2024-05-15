@@ -51,10 +51,17 @@ enum rec_bdev_req_type {
     REC_BDEV_CMD_HW_ID      = 1,
     REC_BDEC_CMD_HW_REV     = 2,
     REC_BDEV_CMD_FW_REV     = 3,
-    REV_BDEV_CMD_SERIAL     = 4,
-    REV_BDEV_CMD_RESET      = 5,
-    REV_BDEV_CMD_GET_INTF   = 6,
+    REC_BDEV_CMD_SERIAL     = 4,
+    REC_BDEV_CMD_RESET      = 5,
+    REC_BDEV_CMD_GET_INTF   = 6,
 };
+
+enum rec_bdev_reset_opt {
+    REC_RST_OPT_REBOOT      = 0,    /* Reset the device and reboot back to the application */
+    REC_RST_OPT_BOOTLOADER  = 1,    /* Reset to bootloader */
+    REC_RST_OPT_ROM_BOOT    = 2,    /* Reset to built-in ROM bootloader */
+};
+
 
 typedef bool (*recom_ctrl_transfer_cb)(uint8_t itf_num,
                                   struct rec_transport_control *ctrl,

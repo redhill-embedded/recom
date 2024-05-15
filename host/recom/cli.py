@@ -6,11 +6,10 @@ import sysconfig
 import subprocess
 from datetime import datetime
 
-import usb.core
-
 import recom
 from recom.device import RecomDevice, RecomDeviceException
-from recom.backend.usb import get_all_devices
+from recom.device import RESET
+from recom.backend import backends
 
 def print_recom_dev_info(dev, verbose):
     print("%s - HW ID/Rev: 0x%04X / 0x%04X" % (dev, dev.hw_id, dev.hw_revision))
@@ -21,7 +20,7 @@ def print_recom_dev_info(dev, verbose):
         # Device information
         print("  HW ID/Rev: 0x%04X / 0x%04X" % (dev.hw_id, dev.hw_revision))
         print("  FW Rev: %s" % dev.fw_revision)
-        print("  Serial: %s" % dev.serial)
+        print("  Serial: %s" % dev.get_serial())
         print("\n  Interfaces:")
         interfaces = dev.getAllInterfaces()
         for itf in interfaces:
@@ -41,23 +40,34 @@ def list_devices(device_id, serial, verbose):
     else:
         print(f'Find by DeviceID - {device_id}')
         try:
-            dev = RecomDevice(device_id=device_id)
-        except RecomDeviceException as dev_exp:
-            print(dev_exp)
+            dev = RecomDevice(id=device_id)
+        except RecomDeviceException:
             return
 
     print_recom_dev_info(dev, verbose)
 
 def run_scan(verbose):
     print("Scanning for Recom devices...")
-    dev_list = get_all_devices()
+    dev_list = []
+    for be in backends:
+        be_devices = be.find()
+        if be_devices is not None:
+            dev_list.extend(be_devices)
     for s_dev in dev_list:
         try:
-            dev = RecomDevice(dev_handle=s_dev)
+            dev = RecomDevice(device=s_dev)
         except Exception:
             pass
         else:
             print_recom_dev_info(dev, verbose)
+
+def reset_device(reset_option, device_id, serial):
+    try:
+        dev = RecomDevice(id=device_id, serial=serial)
+    except RecomDeviceException as dev_exp:
+        print(dev_exp)
+        return
+    dev.reset(reset_option)
 
 def diag_env(save_report=False):
     # System Information
@@ -121,19 +131,6 @@ def diag_env(save_report=False):
             f.write("\tCompiler Flags: {}\n".format(sys.flags))
             f.write("\tPy_ENABLE_SHARED: {}\n".format(sysconfig.get_config_var('Py_ENABLE_SHARED')))
 
-def diag_usb():
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    log_file_path = os.path.join(script_dir, "pyusb_debug.log")
-    os.environ["PYUSB_DEBUG"] = "debug"  # Enable debug logging for pyusb
-    os.environ["PYUSB_LOG_FILENAME"] = log_file_path  # Set the log file path
-    os.environ["PYUSB_BACKEND"] = "libusb"  # Set the backend to libusb
-    try:
-        usb.core.find()  # Attempt to initialize pyusb with the libusb backend
-    except Exception as e:
-        print(f"ERROR: Pyusb failed => {e}")
-    else:
-        print("PyUSB is OK!")
-
 def print_info():
     print(f"\n*****\nWelcome to Recom {recom.__version__}")
     print("\nRecom is most useful as an API to interract with Recom-enabled boards, but there are")
@@ -153,7 +150,7 @@ def cli(argv):
     parser.add_argument("-v", "--verbose", action="store_true", help="Increase verbosity")
     parser.add_argument("--report", action="store_true", help="Write env report to file")
 
-    args = parser.parse_args(argv)
+    args, remaining_args = parser.parse_known_args(argv)
 
     if args.cmd == "scan":
         run_scan(args.verbose)
@@ -162,9 +159,18 @@ def cli(argv):
             list_devices(args.device, args.serial, args.verbose)
         else:
             print("Please provide either a device ID or a device serial number")
+    elif args.cmd == "reset":
+        if remaining_args:
+            # Unknown arguments are present. Assume the first one is the reset option
+            rst_opt = int(remaining_args[0])
+        else:
+            print("No reset option provided. Defaulting to rebooting device to application.")
+            rst_opt = RESET.RCM_DEV_RST_REBOOT
+        if args.device is not None or args.serial is not None:
+            reset_device(rst_opt, args.device, args.serial)
+        else:
+            print("Please provide either a device ID or a device serial number")
     elif args.cmd == "env":
         diag_env(args.report)
-    elif args.cmd == "usb_diag":
-        diag_usb()
     else:
         print_info()

@@ -1,9 +1,8 @@
 #from interface import DeviceInterface
 import enum
 import struct
-from recom.backend.usb import find_device_by_serial, find_device_by_id
-#from recom.backend.uart import find_device_by_serial, find_device_by_id
-from recom.backend.usb import USBDevice
+from recom.backend import backends
+from recom.backend.backend import RecomDeviceDescriptor
 from recom.interface import RecomInterface
 
 # Recom device identifier. DO NOT CHANGE!
@@ -18,34 +17,59 @@ class BASE_DEV_CMDS(enum.IntEnum):
     CMD_RESET           = 0x05
     CMD_GET_INTERFACES  = 0x06,
 
+class RESET(enum.IntEnum):
+    RCM_DEV_RST_REBOOT      = 0x00,     # Reset the device back to the application
+    RCM_DEV_RST_BOOTLOADER  = 0x01,     # Reset to bootloader
+    RCM_DEV_RST_ROM_BOOT    = 0x02,     # Reset to built-in ROM bootloader
+
 class RecomDeviceException(Exception):
-    pass
+    class NoDeviceFound(Exception):
+        pass
+
+    class MultipleDevicesFound(Exception):
+        pass
+
+    class InterfaceNotFound(Exception):
+        pass
+
+    class InterfaceNumOutOfRange(Exception):
+        pass
+
+    class NotARecomDevice(Exception):
+        pass
+
+
 class BaseDevice:
 
-    def __init__(self, device):
-        self._interfaces = []
-        self._comsBackend = None
-        self.dev = device
-        #print(self.dev)
+    _comsBackend = None
 
-        # TODO: Detect and setup COMs backend
-        # For now, default to USB
-        self._comsBackend = USBDevice(device)
+    def __init__(self, device_descriptor: RecomDeviceDescriptor):
+        self._interfaces = []
+
+        # Loop through all backends and see if one can find a device based on
+        # the provided device descriptor
+        for be in backends:
+            cbe = be(device_descriptor)
+            if cbe is not None:
+                self._comsBackend = cbe
+                break
+        if self._comsBackend is None:
+            raise RecomDeviceException.NoDeviceFound()
+        self._comsBackend.open()
+
+    def __del__(self):
+        if self._comsBackend:
+            self._comsBackend.close()
 
     def __repr__(self):
         return repr(self._comsBackend)
-
-    def _detectInterfaces(self):
-        #If USB, get the interfaces from the USB library/descriptor
-        #If UART or other interface, use the control interface to query the available interfaces
-        pass
 
     def getAllInterfaces(self):
         """Returns a list of available interfaces"""
         return self._comsBackend.get_interface_list()
 
     def getRecomDevID(self):
-        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_RECOM_DEV_ID)
+        data = self._comsBackend.read(BASE_DEV_CMDS.CMD_RECOM_DEV_ID, timeout=100)
         if len(data) <= 6:
             return None
         id, prot_ver = struct.unpack('<IH', data[0:6])
@@ -60,80 +84,84 @@ class BaseDevice:
         """Finds an interface based on its ID and returns its handle"""
         itf = self._comsBackend.get_interface(itf_id)
         if itf is None:
-            raise RecomDeviceException("Interface not found")
+            raise RecomDeviceException.InterfaceNotFound
         return RecomInterface(self, itf)
 
     def getInterfaceHandleFromNumber(self, itf_num):
         """Finds an interface based on its number in the interface list and returns its handle"""
         itf_list = self._comsBackend.get_interface_list()
         if itf_num >= len(itf_list):
-            raise RecomDeviceException("Interface number out of range")
+            raise RecomDeviceException.InterfaceNumOutOfRange
         itf = self._comsBackend.get_interface(itf_list[itf_num])
         return RecomInterface(self, itf)
 
     def getHwID(self):
         # The HW ID is a 32-bit number
-        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_HW_ID)
+        data = self._comsBackend.read(BASE_DEV_CMDS.CMD_HW_ID)
         return struct.unpack('<I', data)
 
     def getHwRev(self):
         # The HW revision is a 32-bit number
-        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_HW_REV)
+        data = self._comsBackend.read(BASE_DEV_CMDS.CMD_HW_REV)
         return struct.unpack('<I', data)
 
     def getFwRev(self):
         # The FW revision is a string
-        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_FW_REV)
+        data = self._comsBackend.read(BASE_DEV_CMDS.CMD_FW_REV)
         return ''.join(chr(x) for x in data)
 
-    def getSerial(self):
-        # The device serial number is a string
-        data = self._comsBackend.controlRead(BASE_DEV_CMDS.CMD_SERIAL)
+    def getSerialString(self, index=0):
+        # The serial number at index as a string
+        data = self._comsBackend.read(BASE_DEV_CMDS.CMD_SERIAL, index=index)
         return ''.join(chr(x) for x in data)
+
+    def getSerialBytes(self, index=0):
+        # The serial number at index as a byte array
+        return self._comsBackend.read(BASE_DEV_CMDS.CMD_SERIAL, index=index)
+
+    def sendReset(self, reset: int):
+        # Send a reset command
+        data = struct.pack("B", reset)
+        self._comsBackend.write(BASE_DEV_CMDS.CMD_RESET, data)
 
 class RecomDevice(BaseDevice):
 
-    def __init__(self, serial=None, device_id=None, dev_handle=None):
-        if dev_handle:
-            dev = dev_handle
-        else:
-            dev = self._find_device(serial, device_id)
+    def __init__(self, **kwargs):
+        # We can initialize a RecomDevice with a known device handle, or we can provide device
+        # constraints paramters that will be used to find the device automatically.
+        if "device" not in kwargs:
+            # No device handle/object provided. Try to find a device using the provided constraints
+            dev = self._find_device(**kwargs)
             if dev is None:
-                raise RecomDeviceException("No device found")
+                raise RecomDeviceException.NoDeviceFound
+        else:
+            # Device descriptor provided. Use it
+            dev = kwargs["device"]
         super().__init__(dev)
         recom_dev_info = self.getRecomDevID()
         if recom_dev_info is None:
-            raise RecomDeviceException("Device is not a recom device - Invalid ID response")
+            raise RecomDeviceException.NotARecomDevice("Invalid ID response")
         elif recom_dev_info["id"] != RECOM_DEV_ID:
-            raise RecomDeviceException("Device is not a recom device - ID mismatch")
+            raise RecomDeviceException.NotARecomDevice("ID mismatch")
         self.protocol_version = recom_dev_info["protocol_version"]
         self.recom_fw_version = recom_dev_info["version_string"]
 
 
-    def _find_device(self, serial, device_id):
-        if serial is not None:
-            # Check if we have a USB device with the specified serial
-            dev = find_device_by_serial(serial)
-            if dev is not None:
-                return dev
-            # Next, check if there is a serial device with the specified serial
-            #dev = find_serial_device_by_serial(serial)
-            return dev
-        elif device_id is not None:
-            # Check if we can find a USB device with the specified device_id (VID:PID in this case)
-            dev = find_device_by_id(device_id)
-            if dev is not None:
-                if len(dev) > 1:
-                    raise RecomDeviceException("More than one device found!")
-                elif len(dev) == 1:
-                    return dev[0]
-            # No USB devices found, now try to find serial devices with the specified device_id (port ID)
-            #dev = find_serial_device_by_com_port(device_id)
-            return dev
+    def _find_device(self, **kwargs):
+        # Loop through the backends and let them do the work finding device(s) based on
+        # the provided device constraints
+        dev_list = []
+        for be in backends:
+            dev_list.extend(be.find(**kwargs))
+        if dev_list == []:
+            raise RecomDeviceException.NoDeviceFound
+        if len(dev_list) > 1:
+            print(dev_list)
+            raise RecomDeviceException.MultipleDevicesFound
+        return dev_list[0]
 
-
-    def reset(self):
-        pass
+    def reset(self, reset: int):
+        self.sendReset(reset)
 
     @property
     def hw_id(self):
@@ -147,8 +175,16 @@ class RecomDevice(BaseDevice):
     def fw_revision(self):
         return self.getFwRev()
 
+    def get_serial(self, index=0, format="string"):
+        if (format == "bytes"):
+            return self.getSerialBytes(index=index)
+        else:
+            return self.getSerialString(index=index)
+
+    @classmethod
+    def scan(cls):
+        pass
+
     @property
-    def serial(self):
-        return self.getSerial()
-
-
+    def device_path(self):
+        self._comsBackend.get_device_path()
