@@ -19,7 +19,7 @@ setup(
         ]
     },
     python_requires=">=3.8",
-    install_requires=["libusb1", "pyserial"],
+    install_requires=["libusb1", "pyserial", "pyudev", "psutil"],
     entry_points={
         "console_scripts": [
             "recom=recom.__main__:main",
