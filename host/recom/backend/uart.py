@@ -2,12 +2,12 @@ import serial
 import serial.tools.list_ports
 
 
-from recom.backend.backend import RecomBackend
+from recom.backend.backend import RecomBackend, RecomDeviceDescriptor
 
 
 class SerialDevice(RecomBackend):
 
-    def __init__(self):
+    def __init__(self, device_descriptor: RecomDeviceDescriptor):
         pass
 
     @property
