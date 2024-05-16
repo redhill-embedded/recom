@@ -21,6 +21,12 @@ class RecomBackend:
     def find(cls, **kwargs) -> list:
         return []
     
+    def open(self):
+        raise NotImplementedError
+
+    def close(self):
+        raise NotImplementedError
+
     def get_interfacelist(self):
         raise NotImplementedError
     
