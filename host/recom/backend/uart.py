@@ -18,6 +18,12 @@ class SerialDevice(RecomBackend):
     def find(cls, **kwargs) -> list:
         return []
 
+    def open(self):
+        pass
+
+    def close(self):
+        pass
+
     def get_interfacelist(self):
         raise NotImplementedError
 
