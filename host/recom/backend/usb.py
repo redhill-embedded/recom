@@ -143,8 +143,8 @@ class USBDevice(RecomBackend):
                 pass
         return None
 
-    @property
-    def type(self):
+    @classmethod
+    def type(cls):
         return "usb"
 
     @classmethod

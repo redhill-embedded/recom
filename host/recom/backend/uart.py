@@ -10,8 +10,8 @@ class SerialDevice(RecomBackend):
     def __init__(self, device_descriptor: RecomDeviceDescriptor):
         pass
 
-    @property
-    def type(self):
+    @classmethod
+    def type(cls):
         return "uart"
 
     @classmethod
@@ -25,17 +25,17 @@ class SerialDevice(RecomBackend):
         pass
 
     def get_interfacelist(self):
-        raise NotImplementedError
+        return []
 
     def get_interface(self):
-        raise NotImplementedError
+        return None
 
-    def read(self):
-        raise NotImplementedError
+    def read(self, request, value=0, index=0, dataLen=512, timeout=1000):
+        return []
 
-    def write(self):
-        raise NotImplementedError
+    def write(self, request, data=b'', value=0, index=0, timeout=1000):
+        pass
 
     def get_device_path(self):
         """Returns a backend-specific device path that is unique for this device"""
-        raise NotImplementedError
+        return []

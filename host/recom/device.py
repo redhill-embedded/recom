@@ -49,10 +49,11 @@ class BaseDevice:
         # Loop through all backends and see if one can find a device based on
         # the provided device descriptor
         for be in backends:
-            cbe = be(device_descriptor)
-            if cbe is not None:
-                self._comsBackend = cbe
-                break
+            if be.type() == device_descriptor.type:
+                cbe = be(device_descriptor)
+                if cbe is not None:
+                    self._comsBackend = cbe
+                    break
         if self._comsBackend is None:
             raise RecomDeviceException.NoDeviceFound()
         self._comsBackend.open()

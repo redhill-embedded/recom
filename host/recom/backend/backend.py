@@ -13,7 +13,7 @@ class RecomBackend:
     def __init__(self):
         pass    
 
-    @property
+    @classmethod
     def type(self):
         raise NotImplementedError
     
