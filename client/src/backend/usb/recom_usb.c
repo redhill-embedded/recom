@@ -33,7 +33,17 @@ static const char *descriptor_strings[RECOM_MAX_INTERFACES + 3] = {
 
 /* BOS descriptor */
 static const uint8_t desc_bos[] = {
-    TUD_BOS_DESCRIPTOR(5, 0)
+    /* BOS descriptor header */
+    0x05,           // bLength
+    0x0F,           // bDescriptorType (BOS)
+    0x0C, 0x00,     // wTotalLength
+    0x01,           // bNumDeviceCaps
+
+    /* USB 2.0 Extension descriptor */
+    0x07,           // bLength
+    0x10,           // bDescriptorType (Device Capability)
+    0x02,           // bDevCapabilityType (USB 2.0 Extension)
+    0x02, 0x00, 0x00, 0x00, // BmAttributes (LPM support)
 };
 
 //--------------------------------------------------------------------+
