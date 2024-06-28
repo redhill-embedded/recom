@@ -5,7 +5,6 @@ import struct
 from recom.backend import backends
 from recom.backend.backend import RecomDeviceDescriptor
 from recom.interface import RecomInterface
-from recom.backend.uart import get_serial_ports_from_usb_path
 
 # Recom device identifier. DO NOT CHANGE!
 RECOM_DEV_ID = 0x53C08A30
