@@ -62,26 +62,25 @@ enum rec_bdev_reset_opt {
     REC_RST_OPT_ROM_BOOT    = 2,    /* Reset to built-in ROM bootloader */
 };
 
+typedef enum rec_itf_type {
+    eREC_ITF_TYPE_INVALID   = 0,
+    eREC_ITF_TYPE_GENERIC   = 1,
+    eREC_ITF_TYPE_USB_CDC   = 2,
+} rec_itf_type_t;
 
-typedef bool (*recom_ctrl_transfer_cb)(uint8_t itf_num,
-                                  struct rec_transport_control *ctrl,
-                                  struct rec_message *msg, bool read);
-typedef bool (*recom_data_transfer_cb)(uint8_t itf_num,
-                                    struct rec_transport_control *ctrl,
-                                    uint8_t *data, uint16_t data_len,
-                                    bool read);
+typedef bool (*rec_ctrl_transfer_cb)(uint8_t itf_num,
+                                       struct rec_transport_control *ctrl,
+                                       struct rec_message *msg, bool read);
+typedef bool (*rec_data_rx_cb)(uint8_t itf_num,
+                                 struct rec_transport_control *ctrl,
+                                 uint8_t *data, uint16_t data_len);
 
-// The following typedefs are not used anymore and only kept for reference, if needed.
-/*
-typedef void (*recom_app_ctrl_cb)(uint8_t intf_num, bool read, uint8_t request,
-                                  uint8_t *data, uint16_t data_len);
-typedef void (*recom_app_data_cb)(uint8_t intf_num, uint8_t * data,
-                                  uint16_t data_len);
-*/
+typedef bool (*rec_data_tx_complete_cb)(uint8_t itf_num, uint32_t data_len,
+                                        bool is_error);
 
-typedef struct rec_itf_config {
-    recom_ctrl_transfer_cb ctrl_cb;
-    recom_data_transfer_cb data_cb;
+typedef void (*rec_usb_driver_cb)(uint8_t itf_num);
+
+typedef struct rec_usb_generic_itf {
     uint8_t interface_id;
     uint8_t protocol_id;
     char * app_str;
@@ -89,6 +88,29 @@ typedef struct rec_itf_config {
     uint8_t *tx_buffer;
     uint32_t rx_buffer_size;
     uint32_t tx_buffer_size;
+} rec_usb_generic_itf_t;
+
+typedef struct rec_usb_cdc_itf {
+
+} rec_usb_cdc_itf_t;
+
+typedef struct rec_itf_config {
+    enum rec_itf_type type;
+    char *itf_str;
+    union {
+        struct rec_usb_generic_itf  generic;
+    } u;
 } rec_itf_config_t;
+
+typedef struct rec_itf {
+    uint8_t interface_id;
+    uint8_t sub_interface_id;
+    enum rec_itf_type type;
+    rec_ctrl_transfer_cb ctrl_cb;
+    rec_data_rx_cb data_rx_cb;
+    rec_data_tx_complete_cb data_tx_complete_cb;
+    rec_usb_driver_cb driver_open_cb;
+    rec_usb_driver_cb driver_reset_cb;
+} rec_itf_t;
 
 #endif /* _RECOM_DEFS_H_ */

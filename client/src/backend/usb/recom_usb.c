@@ -100,7 +100,7 @@ static uint8_t desc_configuration[DEV_CONFIG_DESC_MAX_SIZE] = {
 static uint32_t conf_desc_idx = sizeof(tusb_desc_configuration_t);
 static uint8_t ep_in_idx = 1, ep_out_idx = 1;
 static uint8_t intf_idx = 0;
-static bool interface_was_added = false;
+
 /*
  * Adds an interface descriptor to the device's configuration descriptor
  */
@@ -164,8 +164,6 @@ static bool recom_usb_add_interface_descriptor(const void *itf_desc, uint32_t it
     tusb_desc_configuration_t *desc_config = (tusb_desc_configuration_t *)desc_configuration;
     desc_config->wTotalLength = conf_desc_idx;
     desc_config->bNumInterfaces = intf_idx;
-
-    interface_was_added = true;
 
     return true;
 }

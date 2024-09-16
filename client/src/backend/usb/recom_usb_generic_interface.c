@@ -14,7 +14,7 @@
 #define DEFAULT_EP_OUT  (0x00)
 #define DEFAULT_EP_IN   (0x80)
 
-static uint8_t num_registered_interfaces = 0;
+static uint8_t itf_count = 0;
 
 typedef struct rec_usb_itf_desc {
     tusb_desc_interface_t itf;
@@ -28,32 +28,22 @@ typedef struct rec_usb_intf {
     uint8_t ep_out;
 
     /*------------- From this point, data is not cleared by bus reset -------------*/
-    // FIFO
-    tu_fifo_t rx_ff;
-    tu_fifo_t tx_ff;
-
-    uint8_t rx_ff_buf[CFG_TUD_CDC_RX_BUFSIZE];
-    uint8_t tx_ff_buf[CFG_TUD_CDC_TX_BUFSIZE];
-
     // Endpoint Transfer buffer
     CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EP_BUFSIZE];
     CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EP_BUFSIZE];
-
-    //queue_t queue_in;
-    //queue_t queue_out;
 
     /*------------- From this point, data is not cleared by driver init -------------*/
     uint8_t interface_id;
     uint8_t protocol_id;
     recom_ctrl_transfer_cb ctrl_cb;
     recom_data_transfer_cb data_cb;
+    recom_usb_driver_cb open_cb;
+    recom_usb_driver_cb reset_cb;
     uint8_t *rx_buffer;
-    uint8_t *tx_buffer;
     uint32_t rx_buffer_size;
-    uint32_t tx_buffer_size;
 } rec_usb_intf_t;
 
-#define ITF_MEM_RESET_SIZE  offsetof(struct rec_usb_intf, rx_ff)
+#define ITF_MEM_RESET_SIZE  offsetof(struct rec_usb_intf, epout_buf)
 #define ITF_MEM_INIT_SIZE   offsetof(struct rec_usb_intf, interface_id)
 
 CFG_TUSB_MEM_SECTION static struct rec_usb_intf _recom_usb_itf_arr[RECOM_MAX_INTERFACES];
@@ -110,47 +100,63 @@ static void recom_usbd_reset(uint8_t rhport)
     
     printf("RECOM: USBD reset\n\r");
 
-    for (uint8_t i=0; i<num_registered_interfaces; i++) {
+    for (uint8_t i=0; i<itf_count; i++) {
         struct rec_usb_intf *p_itf = &_recom_usb_itf_arr[i];
         tu_memclr(p_itf, ITF_MEM_RESET_SIZE);
         /* Perform any other actions (i.e. FIFO clear) here, if needed */
+
+        /* User callback, if present */
+        if (p_itf->reset_cb) {
+            p_itf->reset_cb(p_itf->itf_num);
+        }
     }
 }
+
+static uint8_t open_failed = 0;
 
 static uint16_t recom_usbd_open(uint8_t rhport,
                              const tusb_desc_interface_t *itf_desc,
                              __unused uint16_t max_len)
 {   
     /* Can only manage vendor interfaces! */
-    if (itf_desc->bInterfaceClass != TUSB_CLASS_VENDOR_SPECIFIC)
+    if (itf_desc->bInterfaceClass != TUSB_CLASS_VENDOR_SPECIFIC) {
+        open_failed = 1;
         return 0;
+    }
+
+    (void) open_failed;
 
     /* Find interface that matches the interface and protocol IDs and is available */
     struct rec_usb_intf *p_itf = NULL;
-    for (uint8_t i=0; i<num_registered_interfaces; i++) {
-        if (_recom_usb_itf_arr[i].interface_id != itf_desc->bInterfaceSubClass ||
-            _recom_usb_itf_arr[i].protocol_id != itf_desc->bInterfaceProtocol)
-            break;
-        if (_recom_usb_itf_arr[i].ep_in == 0) {
-            p_itf = &_recom_usb_itf_arr[i];
-            break;
+    for (uint8_t i=0; i<itf_count; i++) {
+        if (_recom_usb_itf_arr[i].interface_id == itf_desc->bInterfaceSubClass ||
+            _recom_usb_itf_arr[i].protocol_id == itf_desc->bInterfaceProtocol)
+            if (_recom_usb_itf_arr[i].ep_in == 0) {
+                /* Found it! */
+                p_itf = &_recom_usb_itf_arr[i];
+                break;
         }
     }
-    if (p_itf == NULL)
-        return false;
+    if (p_itf == NULL) {
+        open_failed = 2;
+        return 0;
+    }
 
     /* Get the control interface number */
     p_itf->itf_num = itf_desc->bInterfaceNumber;
 
     /* Get pointer to the next descriptor blob, which is the first endpoint descriptor */
     const uint8_t *desc_ep = tu_desc_next(itf_desc);
-    if (tu_desc_type(desc_ep) != TUSB_DESC_ENDPOINT)
-        return false;
+    if (tu_desc_type(desc_ep) != TUSB_DESC_ENDPOINT) {
+        open_failed = 3;
+        return 0;
+    }
 
     /* Initialize and open the two endpoints */
     if (usbd_open_edpt_pair(rhport, desc_ep, 2, TUSB_XFER_BULK,
                                   &p_itf->ep_out, &p_itf->ep_in), 0) {
-        return false;
+        open_failed = 4;
+        return 0;
     }
     printf("RECOM: Itf %d, EPOUT=0x%02X, EP_IN=0x%02X\n\r", p_itf->itf_num,
                 p_itf->ep_out, p_itf->ep_in);
@@ -158,9 +164,14 @@ static uint16_t recom_usbd_open(uint8_t rhport,
     /* Prepare the OUT endpoint for reception */
     prime_out_ep(p_itf);
 
+    /* User callback, if present */
+    if (p_itf->open_cb) {
+        p_itf->open_cb(p_itf->itf_num);
+    }
+
     /* Interface open succeeded. We have consumed the entire interface descriptor */
     const uint16_t drv_len = sizeof(struct rec_usb_itf_desc);
-    printf("FLEX IO: Driver open\n\r");
+    printf("RECOM: Generic Driver open\n\r");
     return drv_len;
 }
 
@@ -169,13 +180,11 @@ static uint16_t recom_usbd_open(uint8_t rhport,
  */
 static bool recom_usbd_control_xfer_cb(__unused uint8_t rhport, uint8_t stage, const tusb_control_request_t *request)
 {
-    //TODO: Update/change this buffer
-    static uint32_t outbuf[16];  /* aligned appropriately for all data types */
     struct rec_usb_intf* p_itf = NULL;
     struct rec_message rec_ctrl_msg;
 
     /* Identiy which interface to use */
-    for (uint8_t i=0; i<num_registered_interfaces; i++) {
+    for (uint8_t i=0; i<itf_count; i++) {
         if (_recom_usb_itf_arr[i].itf_num == request->wIndex) {
             p_itf = &_recom_usb_itf_arr[i];
             break;
@@ -249,16 +258,16 @@ static bool recom_usbd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t re
 {
     uint8_t itf;
     struct rec_usb_intf *p_itf;
-    bool ret_val = false;
+    bool ret_val;
 
     /* Determine which interface to use */
-    for (itf=0; itf < num_registered_interfaces; itf++) {
+    for (itf=0; itf < itf_count; itf++) {
         p_itf = &_recom_usb_itf_arr[itf];
         if ((ep_addr == p_itf->ep_out) || (ep_addr == p_itf->ep_in)) {
             break;
         }
     }
-    if (itf >= num_registered_interfaces) {
+    if (itf >= itf_count) {
         return false;
     }
 
@@ -267,8 +276,8 @@ static bool recom_usbd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t re
         if (result == XFER_RESULT_SUCCESS &&
             xferred_bytes <= RECOM_INTERFACE_DATA_BUFFER_SIZE) {
             if (p_itf->data_cb) {
-                ret_val = p_itf->data_cb(p_itf->itf_num, NULL, p_itf->epout_buf,
-                               (uint16_t) xferred_bytes, false);
+                ret_val = p_itf->data_rx_cb(p_itf->itf_num, NULL, p_itf->epout_buf,
+                               (uint16_t) xferred_bytes);
             } else {
                 ret_val = false;
             }
@@ -277,7 +286,9 @@ static bool recom_usbd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t re
          * Now that we have received data, we need to prime the OUT endpoint for the
          * next data packet from the host.
          */
-        prime_out_ep(p_itf);
+        if (!ret_val || prime_out_ep(p_itf)) {
+            return false;
+        }
     } else if (ep_addr == p_itf->ep_in) {
         /*
          * If IN transfer (to host) with length n*64 has been sent, immediately
@@ -287,9 +298,11 @@ static bool recom_usbd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t re
          */
         if (result == XFER_RESULT_SUCCESS &&
             xferred_bytes > 0 && xferred_bytes % 64 == 0) {
-
-                return usbd_edpt_xfer(TUD_OPT_RHPORT, p_itf->ep_in,
+                ret_val = usbd_edpt_xfer(TUD_OPT_RHPORT, p_itf->ep_in,
                                   p_itf->epin_buf, 0);
+        }
+        if (p_itf->data_complete_ch) {
+            ret_val = p_itf->data_complete_cb(p_itf->itf_num, xferred_bytes, result!= XFER_RESULT_SUCCESS);
         }
     }
 
@@ -311,7 +324,7 @@ static usbd_class_driver_t recom_itf_drv = {
     .sof                = NULL,
 };
 
-uint8_t recom_usb_generic_interface_register(struct rec_itf_config *itf_cfg)
+uint8_t recom_usb_generic_interface_register(struct rec_interface * itf, struct rec_itf_config *itf_cfg)
 {
     struct rec_usb_itf_desc recom_itf_desc = {
         .itf = {
@@ -319,8 +332,8 @@ uint8_t recom_usb_generic_interface_register(struct rec_itf_config *itf_cfg)
             .bDescriptorType = TUSB_DESC_INTERFACE,
             .bNumEndpoints = 2,
             .bInterfaceClass = TUSB_CLASS_VENDOR_SPECIFIC,
-            .bInterfaceSubClass = itf_cfg->interface_id,
-            .bInterfaceProtocol = itf_cfg->protocol_id,
+            .bInterfaceSubClass = itf_cfg->u.generic.interface_id,
+            .bInterfaceProtocol = itf_cfg->u.generic.protocol_id,
         },
         .ep_out = {
             .bLength = sizeof(tusb_desc_endpoint_t),
@@ -348,36 +361,39 @@ uint8_t recom_usb_generic_interface_register(struct rec_itf_config *itf_cfg)
         },
     };
 
-    _recom_usb_itf_arr[num_registered_interfaces].ctrl_cb = itf_cfg->ctrl_cb;
-    _recom_usb_itf_arr[num_registered_interfaces].data_cb = itf_cfg->data_cb;
-    _recom_usb_itf_arr[num_registered_interfaces].interface_id = itf_cfg->interface_id;
-    _recom_usb_itf_arr[num_registered_interfaces].protocol_id = itf_cfg->protocol_id;
-    _recom_usb_itf_arr[num_registered_interfaces].rx_buffer = itf_cfg->rx_buffer;
-    _recom_usb_itf_arr[num_registered_interfaces].tx_buffer = itf_cfg->tx_buffer;
-    _recom_usb_itf_arr[num_registered_interfaces].rx_buffer_size = itf_cfg->rx_buffer_size;
-    _recom_usb_itf_arr[num_registered_interfaces].tx_buffer_size = itf_cfg->tx_buffer_size;
-    num_registered_interfaces++;
+    _recom_usb_itf_arr[itf_count].ctrl_cb = itf_cfg->u.generic.ctrl_cb;
+    _recom_usb_itf_arr[itf_count].data_cb = itf_cfg->u.generic.data_cb;
+    _recom_usb_itf_arr[itf_count].reset_cb = itf_cfg->u.generic.reset_cb;
+    _recom_usb_itf_arr[itf_count].open_cb = itf_cfg->u.generic.open_cb;
+    _recom_usb_itf_arr[itf_count].interface_id = itf_cfg->u.generic.interface_id;
+    _recom_usb_itf_arr[itf_count].protocol_id = itf_cfg->u.generic.protocol_id;
+    _recom_usb_itf_arr[itf_count].rx_buffer = itf_cfg->u.generic.rx_buffer;
+    _recom_usb_itf_arr[itf_count].rx_buffer_size = itf_cfg->u.generic.rx_buffer_size;
 
-    printf("Adding interface for %s\n\r", itf_cfg->app_str);
+    /*
+     * The current counter for the number of registered interfaces (this driver) is
+     * the interface ID
+     */
+    itf->interface_id = itf_count;
 
-    return recom_usb_add_interface(&recom_itf_drv, &recom_itf_desc, sizeof(recom_itf_desc), itf_cfg->app_str);
+    /* Increase the driver counter to prepare for the next one */
+    itf_count++;
+
+    printf("Adding interface for %s\n\r", itf_cfg->itf_str);
+
+    return recom_usb_add_interface(&recom_itf_drv, &recom_itf_desc, sizeof(recom_itf_desc), itf_cfg->itf_str);
 }
 
-bool recom_usb_generic_interface_write(uint8_t itf_num, uint8_t *p_data, uint32_t num_bytes)
+bool recom_usb_generic_interface_write(struct rec_interface *itf, uint8_t *p_data, uint32_t num_bytes)
 {
-    uint8_t itf_idx;
     struct rec_usb_intf *p_itf;
 
     /* Determine which interface to use */
-    for (itf_idx=0; itf_idx < num_registered_interfaces; itf_idx++) {
-        p_itf = &_recom_usb_itf_arr[itf_idx];
-        if (p_itf->itf_num == itf_num) {
-            break;
-        }
+    if (itf->interface_id >= itf_count) {
+        return false;
     }
 
-    if (p_itf == NULL)
-        return false;
+    p_itf = &_recom_usb_itf_arr[itf->interface_id];
 
     if (num_bytes > RECOM_INTERFACE_DATA_BUFFER_SIZE)
         return false;
@@ -386,12 +402,12 @@ bool recom_usb_generic_interface_write(uint8_t itf_num, uint8_t *p_data, uint32_
     return usbd_edpt_xfer(TUD_OPT_RHPORT, p_itf->ep_in, p_itf->epin_buf, num_bytes);
 }
 
-uint32_t recom_usb_generic_interface_bytes_available(uint8_t intf)
+uint32_t recom_usb_generic_interface_bytes_available(struct rec_interface *itf)
 {
     return 0;
 }
 
-bool recom_usb_generic_interface_read(uint8_t intf, uint8_t *p_data, uint32_t num_bytes)
+bool recom_usb_generic_interface_read(struct rec_interface *itf, uint8_t *p_data, uint32_t num_bytes)
 {
     return true;
 }

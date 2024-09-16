@@ -22,7 +22,7 @@ __attribute__((weak)) const char * rec_device_fw_rev_cb(void)
 
 __attribute__((weak)) size_t rec_device_serial_cb(uint8_t index, char **p_serial)
 {
-    *p_serial = &("0");
+    *p_serial = "0";
     return 1;
 }
 
@@ -79,7 +79,7 @@ bool rec_bdev_process_msg(struct rec_transport_control *ctrl, struct rec_message
 
     case REC_BDEV_CMD_FW_REV:
         if (read) {
-            p_str = rec_device_fw_rev_cb();
+            p_str = (char *) rec_device_fw_rev_cb();
             data_len = strlen(p_str);
             if (data_len >= ctrl->max_data_len) {
                 return false;
