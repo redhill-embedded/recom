@@ -1,6 +1,10 @@
 import pyudev
 import psutil
 
+from serial.tools import list_ports
+
+from recom import RecomDevice
+
 
 def get_drive_mount_point_from_usb_port_path(port_path: list, vid_pid=tuple)-> str:
     """Utility function to get the storage drive mount point of a USB device
@@ -46,3 +50,11 @@ def get_drive_mount_point_from_usb_port_path(port_path: list, vid_pid=tuple)-> s
         except Exception:
             continue
         return None
+
+def get_serial_port_list(device: RecomDevice):
+    """Returns a list of all serial ports (if any) that are part of this device
+
+    The returned values are strings describing the port's device name (i.e. ttyUSB0 or COM7)
+    """
+    port_match_gen = list_ports.grep(device.device_path)
+    return [port.device for port in port_match_gen]

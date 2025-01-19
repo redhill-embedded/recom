@@ -205,8 +205,11 @@ class USBDevice(RecomBackend):
         return None
 
     def get_device_path(self):
-        """Returns a backend-specific device path that is unique for this device"""
-        return self.handle.getPortNumberList()
+        """Returns a backend-specific USB device path that is unique for this device"""
+        usb_bus = self.handle.getBusNumber()
+        port_number_list = self.handle.getPortNumberList()
+        path = f'{usb_bus}-{".".join(map(str, port_number_list))}'
+        return path
 
 
 class USBInterface():

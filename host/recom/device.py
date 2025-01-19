@@ -1,6 +1,7 @@
 #from interface import DeviceInterface
 import enum
 import struct
+
 from recom.backend import backends
 from recom.backend.backend import RecomDeviceDescriptor
 from recom.interface import RecomInterface
@@ -14,7 +15,7 @@ class BASE_DEV_CMDS(enum.IntEnum):
     CMD_HW_REV          = 0x02,
     CMD_FW_REV          = 0x03,
     CMD_SERIAL          = 0x04,
-    CMD_RESET           = 0x05
+    CMD_RESET           = 0x05,
     CMD_GET_INTERFACES  = 0x06,
 
 class RESET(enum.IntEnum):
@@ -33,6 +34,9 @@ class RecomDeviceException(Exception):
         pass
 
     class InterfaceNumOutOfRange(Exception):
+        pass
+
+    class AccessDenied(Exception):
         pass
 
     class NotARecomDevice(Exception):
@@ -188,4 +192,4 @@ class RecomDevice(BaseDevice):
 
     @property
     def device_path(self):
-        self._comsBackend.get_device_path()
+        return self._comsBackend.get_device_path()

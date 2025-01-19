@@ -100,7 +100,7 @@ static uint8_t desc_configuration[DEV_CONFIG_DESC_MAX_SIZE] = {
 static uint32_t conf_desc_idx = sizeof(tusb_desc_configuration_t);
 static uint8_t ep_in_idx = 1, ep_out_idx = 1;
 static uint8_t intf_idx = 0;
-static bool interface_was_added = false;
+
 /*
  * Adds an interface descriptor to the device's configuration descriptor
  */
@@ -153,7 +153,7 @@ static bool recom_usb_add_interface_descriptor(const void *itf_desc, uint32_t it
             desc_union->bControlInterface = intf_idx - 1;
             desc_union->bSubordinateInterface = intf_idx;
         } else {
-            printf("Unknown descriptor type %d\n", desc[1]);
+            RECOM_INFO("RECOM USBD: Unknown descriptor type %d\n", desc[1]);
         }
         conf_desc_idx += desc[0];   /* Advance index into descriptor array */
         desc += desc[0];            /* Adcance pointer to configuration descriptor */
@@ -164,8 +164,6 @@ static bool recom_usb_add_interface_descriptor(const void *itf_desc, uint32_t it
     tusb_desc_configuration_t *desc_config = (tusb_desc_configuration_t *)desc_configuration;
     desc_config->wTotalLength = conf_desc_idx;
     desc_config->bNumInterfaces = intf_idx;
-
-    interface_was_added = true;
 
     return true;
 }
@@ -297,7 +295,7 @@ const uint16_t *tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
     (void) langid;
 
-    printf("USBD: Get string CB!\n\r");
+    RECOM_INFO("RECOM USBD: Get string CB!\n\r");
 
     static uint16_t str_desc[32];
 
@@ -371,7 +369,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage,
 
 const usbd_class_driver_t *usbd_app_driver_get_cb(uint8_t *countp)
 {
-    printf("USBD: Get driver CB!\n\r");
+    RECOM_INFO("RECOM USBD: Get driver CB!\n\r");
     *countp = num_drivers;
     return (const usbd_class_driver_t *) interface_class_drivers;
 }
@@ -410,7 +408,7 @@ bool recom_usb_add_interface(usbd_class_driver_t* drv,
                               const char *str)
 {
     if ((num_interfaces + 1) >= RECOM_MAX_INTERFACES) {
-        printf("Add custom interface: ERROR - Out of bounds\n\r");
+        RECOM_INFO("RECOM USBD: Add custom interface: ERROR - Out of bounds\n\r");
         return false;
     }
 
@@ -441,7 +439,7 @@ bool recom_usb_add_interface(usbd_class_driver_t* drv,
      * Attempt to add the interface descriptor.
      */
     if (!recom_usb_add_interface_descriptor(desc, desc_len)) {
-        printf("Add custom interface: ERROR adding descriptor\n\r");
+        RECOM_INFO("RECOM USBD: Add custom interface: ERROR adding descriptor\n\r");
         return false;
     }
 
