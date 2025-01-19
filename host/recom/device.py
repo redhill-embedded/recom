@@ -15,7 +15,7 @@ class BASE_DEV_CMDS(enum.IntEnum):
     CMD_HW_REV          = 0x02,
     CMD_FW_REV          = 0x03,
     CMD_SERIAL          = 0x04,
-    CMD_RESET           = 0x05
+    CMD_RESET           = 0x05,
     CMD_GET_INTERFACES  = 0x06,
 
 class RESET(enum.IntEnum):
