@@ -17,10 +17,10 @@ typedef struct cdc_itf_desc {
     tusb_desc_interface_t itf_data;
     tusb_desc_endpoint_t ep_out;
     tusb_desc_endpoint_t ep_in;
-} __attribute__((packed));
+} __attribute__((packed)) cdc_itf_desc_t;
 
 
-uint8_t recom_usb_cdc_interface_register(struct rec_itf_config *itf_cfg)
+uint8_t recom_usb_cdc_interface_register(struct rec_itf * itf, struct rec_itf_config *itf_cfg)
 {
     struct cdc_itf_desc cdc_itf_desc = {
         .assoc = {
@@ -125,30 +125,30 @@ uint8_t recom_usb_cdc_interface_register(struct rec_itf_config *itf_cfg)
     if (recom_cdc_uart_itf_count > CFG_TUD_CDC)
         return false;
 
-    return recom_usb_add_interface(NULL, &cdc_itf_desc, sizeof(cdc_itf_desc), itf_cfg->app_str);
+    return recom_usb_add_interface(NULL, &cdc_itf_desc, sizeof(cdc_itf_desc), itf_cfg->itf_str);
 }
 
-bool recom_usb_cdc_interface_write(uint8_t intf, uint8_t *p_data, uint32_t num_bytes)
+bool recom_usb_cdc_interface_write(struct rec_itf * itf, uint8_t *p_data, uint32_t num_bytes)
 {
     uint32_t bytes_written;
 
-    bytes_written = tud_cdc_n_write(intf, p_data, num_bytes);
+    bytes_written = tud_cdc_n_write(itf->sub_interface_id, p_data, num_bytes);
     if (bytes_written != num_bytes)
         return false;
-    tud_cdc_n_write_flush(intf);
+    tud_cdc_n_write_flush(itf->sub_interface_id);
     return true;
 }
 
-uint32_t recom_usb_cdc_interface_bytes_available(uint8_t intf)
+uint32_t recom_usb_cdc_interface_bytes_available(struct rec_itf * itf)
 {
-    return tud_cdc_n_available(intf);
+    return tud_cdc_n_available(itf->sub_interface_id);
 }
 
-bool recom_usb_cdc_interface_read(uint8_t intf, uint8_t *p_data, uint32_t num_bytes)
+bool recom_usb_cdc_interface_read(struct rec_itf * itf, uint8_t *p_data, uint32_t num_bytes)
 {
     uint32_t bytes_read;
 
-    bytes_read = tud_cdc_n_read(intf, p_data, num_bytes);
+    bytes_read = tud_cdc_n_read(itf->sub_interface_id, p_data, num_bytes);
     if (bytes_read != num_bytes)
         return false;
     return true;

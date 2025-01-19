@@ -18,5 +18,4 @@ bool recom_usb_add_interface(usbd_class_driver_t* drv,
                               const void *desc, unsigned int desc_len,
                               const char *str);
 
-
 #endif /* _RECOM_USB_H_ */
