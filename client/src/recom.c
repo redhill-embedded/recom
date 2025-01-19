@@ -70,17 +70,17 @@ bool recom_itf_register(struct rec_itf *itf, struct rec_itf_config *config)
     return false;
 }
 
-void recom_itf_add_ctrl_callback(struct rec_itf *itf, rec_ctrl_transfer_cb cb)
+void recom_itf_set_ctrl_callback(struct rec_itf *itf, rec_ctrl_transfer_cb cb)
 {
     itf->ctrl_cb = cb;
 }
 
-void recom_itf_set_data_rx_received_callback(struct rec_itf *itf, rec_data_rx_cb cb)
+void recom_itf_set_rx_data_callback(struct rec_itf *itf, rec_data_rx_cb cb)
 {
     itf->data_rx_cb = cb;
 }
 
-void recom_itf_set_transmit_complete_callback(struct rec_itf *itf, rec_data_tx_complete_cb cb)
+void recom_itf_set_tx_complete_callback(struct rec_itf *itf, rec_data_tx_complete_cb cb)
 {
     itf->data_tx_complete_cb = cb;
 }

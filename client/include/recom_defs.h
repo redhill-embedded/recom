@@ -18,6 +18,14 @@
  */
 #define RECOM_PROTOCOL_VER  (0x0001)
 
+#ifndef RECOM_INFO
+#define RECOM_INFO(...) ((void) 0)
+#endif
+
+#ifndef RECOM_DEBUG
+#define RECOM_DEBUG(...) ((void) 0)
+#endif
+
 enum rec_transport_type {
     eREC_TRANSPORT_TYPE_NONE = 0,
     eREC_TRANSPORT_TYPE_USB,
@@ -99,6 +107,7 @@ typedef struct rec_itf_config {
     char *itf_str;
     union {
         struct rec_usb_generic_itf  generic;
+        struct rec_usb_cdc_itf      cdc_uart;
     } u;
 } rec_itf_config_t;
 

@@ -20,7 +20,7 @@ __attribute__((weak)) const char * rec_device_fw_rev_cb(void)
     return "0.0.0";
 }
 
-__attribute__((weak)) size_t rec_device_serial_cb(uint8_t index, char **p_serial)
+__attribute__((weak)) size_t rec_device_serial_cb(uint8_t index, const char **p_serial)
 {
     *p_serial = "0";
     return 1;
@@ -36,7 +36,7 @@ bool rec_bdev_process_msg(struct rec_transport_control *ctrl, struct rec_message
 {
     uint16_t data_len;
     uint32_t temp32;
-    char * p_str;
+    const char * p_str;
 
     switch (msg->cmd) {
     

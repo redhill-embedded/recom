@@ -33,7 +33,7 @@ void recom_itf_set_ctrl_callback(struct rec_itf *itf, rec_ctrl_transfer_cb cb);
  * @param itf Pointer to RECom interface handle
  * @param cb The data received callback function
  */
-void recom_itf_set_data_rx_callback(struct rec_itf *itf, rec_data_rx_cb cb);
+void recom_itf_set_rx_data_callback(struct rec_itf *itf, rec_data_rx_cb cb);
 
 /**
  * @brief Registers a data transmission complete callback with the interface.
@@ -44,7 +44,7 @@ void recom_itf_set_data_rx_callback(struct rec_itf *itf, rec_data_rx_cb cb);
  * @param itf Pointer to RECom interface handle
  * @param cb The transfer complete callback function
  */
-void recom_itf_set_transmit_complete_callback(struct rec_itf *itf, rec_data_tx_complete_cb cb);
+void recom_itf_set_tx_complete_callback(struct rec_itf *itf, rec_data_tx_complete_cb cb);
 
 /**
  * @brief Returns the number of bytes available at the interface
