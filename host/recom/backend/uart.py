@@ -15,7 +15,7 @@ class SerialDevice(RecomBackend):
 
     @classmethod
     def find(cls, **kwargs) -> list:
-        return []
+        return None
 
     def open(self):
         pass

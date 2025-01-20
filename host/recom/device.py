@@ -157,7 +157,9 @@ class RecomDevice(BaseDevice):
         # the provided device constraints
         dev_list = []
         for be in backends:
-            dev_list.extend(be.find(**kwargs))
+            d = be.find(**kwargs)
+            if d is not None:
+                dev_list.append(d)
         if dev_list == []:
             raise RecomDeviceException.NoDeviceFound
         if len(dev_list) > 1:

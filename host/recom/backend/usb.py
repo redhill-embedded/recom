@@ -63,7 +63,8 @@ def find_device_by_id(vid_pid):
     return None
 
 def find_device_by_serial(serial: str)-> RecomDeviceDescriptor:
-    """Helper function to find a device by its serial number.
+    """Helper function to find a device by its serial number. A partial serial
+    number match is possible.
 
     If there are more than one USB device matching the serial number,
     only the first match will be returned.
@@ -71,8 +72,11 @@ def find_device_by_serial(serial: str)-> RecomDeviceDescriptor:
     """
     with usb1.USBContext() as ctx:
         for device in ctx.getDeviceIterator(skip_on_error=True):
-            if device.getSerialNumber() == serial:
-                return _to_device_descriptor(device)
+            try:
+                if serial in device.getSerialNumber():
+                    return _to_device_descriptor(device)
+            except Exception:
+                continue
         return None
 
 def get_all_usb_devices()-> list:
