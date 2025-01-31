@@ -5,6 +5,7 @@ import struct
 from recom.backend import backends
 from recom.backend.backend import RecomDeviceDescriptor
 from recom.interface import RecomInterface
+from recom.exceptions import RecomDeviceException
 
 # Recom device identifier. DO NOT CHANGE!
 RECOM_DEV_ID = 0x53C08A30
@@ -22,26 +23,6 @@ class RESET(enum.IntEnum):
     RCM_DEV_RST_REBOOT      = 0x00,     # Reset the device back to the application
     RCM_DEV_RST_BOOTLOADER  = 0x01,     # Reset to bootloader
     RCM_DEV_RST_ROM_BOOT    = 0x02,     # Reset to built-in ROM bootloader
-
-class RecomDeviceException(Exception):
-    class NoDeviceFound(Exception):
-        pass
-
-    class MultipleDevicesFound(Exception):
-        pass
-
-    class InterfaceNotFound(Exception):
-        pass
-
-    class InterfaceNumOutOfRange(Exception):
-        pass
-
-    class AccessDenied(Exception):
-        pass
-
-    class NotARecomDevice(Exception):
-        pass
-
 
 class BaseDevice:
 
