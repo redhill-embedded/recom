@@ -2,6 +2,7 @@ import enum
 import usb1
 
 from recom.backend.backend import RecomBackend, RecomDeviceDescriptor
+from recom.exceptions import RecomDeviceException
 
 def _to_device_descriptor(device)-> RecomDeviceDescriptor:
     device_id = (device.getVendorID(), device.getProductID())
@@ -167,7 +168,13 @@ class USBDevice(RecomBackend):
             return get_all_usb_devices()
 
     def open(self):
-        self.dev = self.handle.open()
+        try:
+            self.dev = self.handle.open()
+        except usb1.USBError as e:
+            if e.value == -3:
+                raise RecomDeviceException.AccessDenied(e)
+            else:
+                raise RecomDeviceException.Generic(e)
 
         # Find all interfaces
         for config in self.handle.iterConfigurations():
@@ -178,7 +185,12 @@ class USBDevice(RecomBackend):
 
     def close(self):
         if self.dev:
-            self.dev.close()
+            try:
+                self.dev.close()
+            except Exception as e:
+                pass
+            finally:
+                self.dev = None
 
     def read(self, request, value=0, index=0, dataLen=512, timeout=1000):
         return self.dev.controlRead(CTRL_REQ.DEVICE_VENDOR_IN, request, value, index, dataLen, timeout)
@@ -251,13 +263,33 @@ class USBInterface():
         return self.itf_str
 
     def controlRead(self, request, value=0, index=0, dataLen=512, timeout=1000):
-        return self.dev.controlRead(CTRL_REQ.INTERFACE_VENDOR_IN, request, value, index, dataLen, timeout)
+        try:
+            data = self.dev.controlRead(CTRL_REQ.INTERFACE_VENDOR_IN, request, value, index, dataLen, timeout)
+        except Exception as e:
+            raise RecomDeviceException.TransportException(e)
+        else:
+            return data
 
     def controlWrite(self, request, data=b'', value=0, index=0, timeout=1000):
-        return self.dev.controlWrite(CTRL_REQ.INTERFACE_VENDOR_OUT, request, value, index, data, timeout)
+        try:
+            status = self.dev.controlWrite(CTRL_REQ.INTERFACE_VENDOR_OUT, request, value, index, data, timeout)
+        except:
+            raise RecomDeviceException.TransportException(e)
+        else:
+            return status
 
     def read(self, dataLen=64, timeout=1000):
-        return self.dev.bulkRead(self.ep_in, dataLen, timeout)
+        try:
+            data = self.dev.bulkRead(self.ep_in, dataLen, timeout)
+        except Exception as e:
+            raise RecomDeviceException.TransportException(e)
+        else:
+            return data
 
     def write(self, data, timeout=1000):
-        return self.dev.bulkWrite(self.ep_out, data, timeout)
+        try:
+            status = self.dev.bulkWrite(self.ep_out, data, timeout)
+        except Exception as e:
+            raise RecomDeviceException.TransportException(e)
+        else:
+            return status
