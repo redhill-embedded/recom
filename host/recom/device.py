@@ -159,11 +159,10 @@ class RecomDevice(BaseDevice):
         for be in backends:
             d = be.find(**kwargs)
             if d is not None:
-                dev_list.append(d)
+                dev_list.extend(d)
         if dev_list == []:
             raise RecomDeviceException.NoDeviceFound
         if len(dev_list) > 1:
-            print(dev_list)
             raise RecomDeviceException.MultipleDevicesFound
         return dev_list[0]
 

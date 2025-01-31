@@ -157,10 +157,12 @@ class USBDevice(RecomBackend):
 
         If no constraints are provided, all USB devices will be returned.
         """
-        if "id" in kwargs:
+        if "id" in kwargs and kwargs["id"] is not None:
             return find_device_by_id(kwargs["id"])
-        elif "serial" in kwargs:
-            return find_device_by_serial(kwargs["serial"])
+        elif "serial" in kwargs and kwargs["serial"] is not None:
+            # find() returns a list, but find_device_by_serial returns only a single device.
+            # So we need to make it a list before returning
+            return [find_device_by_serial(kwargs["serial"])]
         else:
             return get_all_usb_devices()
 
