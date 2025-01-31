@@ -41,9 +41,9 @@ struct rec_config {
     enum rec_transport_type type;
     uint16_t vendor_id;
     uint16_t product_id;
-    char * vendor_str;
-    char * product_str;
-    char * serial_str;
+    const char * vendor_str;
+    const char * product_str;
+    const char * serial_str;
 };
 
 struct rec_message {

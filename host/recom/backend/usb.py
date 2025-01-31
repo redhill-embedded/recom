@@ -2,6 +2,7 @@ import enum
 import usb1
 
 from recom.backend.backend import RecomBackend, RecomDeviceDescriptor
+from recom.exceptions import RecomDeviceException
 
 def _to_device_descriptor(device)-> RecomDeviceDescriptor:
     device_id = (device.getVendorID(), device.getProductID())
@@ -63,7 +64,8 @@ def find_device_by_id(vid_pid):
     return None
 
 def find_device_by_serial(serial: str)-> RecomDeviceDescriptor:
-    """Helper function to find a device by its serial number.
+    """Helper function to find a device by its serial number. A partial serial
+    number match is possible.
 
     If there are more than one USB device matching the serial number,
     only the first match will be returned.
@@ -71,8 +73,11 @@ def find_device_by_serial(serial: str)-> RecomDeviceDescriptor:
     """
     with usb1.USBContext() as ctx:
         for device in ctx.getDeviceIterator(skip_on_error=True):
-            if device.getSerialNumber() == serial:
-                return _to_device_descriptor(device)
+            try:
+                if serial in device.getSerialNumber():
+                    return _to_device_descriptor(device)
+            except Exception:
+                continue
         return None
 
 def get_all_usb_devices()-> list:
@@ -153,15 +158,23 @@ class USBDevice(RecomBackend):
 
         If no constraints are provided, all USB devices will be returned.
         """
-        if "id" in kwargs:
+        if "id" in kwargs and kwargs["id"] is not None:
             return find_device_by_id(kwargs["id"])
-        elif "serial" in kwargs:
-            return find_device_by_serial(kwargs["serial"])
+        elif "serial" in kwargs and kwargs["serial"] is not None:
+            # find() returns a list, but find_device_by_serial returns only a single device.
+            # So we need to make it a list before returning
+            return [find_device_by_serial(kwargs["serial"])]
         else:
             return get_all_usb_devices()
 
     def open(self):
-        self.dev = self.handle.open()
+        try:
+            self.dev = self.handle.open()
+        except usb1.USBError as e:
+            if e.value == -3:
+                raise RecomDeviceException.AccessDenied(e)
+            else:
+                raise RecomDeviceException.Generic(e)
 
         # Find all interfaces
         for config in self.handle.iterConfigurations():
@@ -172,7 +185,12 @@ class USBDevice(RecomBackend):
 
     def close(self):
         if self.dev:
-            self.dev.close()
+            try:
+                self.dev.close()
+            except Exception as e:
+                pass
+            finally:
+                self.dev = None
 
     def read(self, request, value=0, index=0, dataLen=512, timeout=1000):
         return self.dev.controlRead(CTRL_REQ.DEVICE_VENDOR_IN, request, value, index, dataLen, timeout)
@@ -245,13 +263,33 @@ class USBInterface():
         return self.itf_str
 
     def controlRead(self, request, value=0, index=0, dataLen=512, timeout=1000):
-        return self.dev.controlRead(CTRL_REQ.INTERFACE_VENDOR_IN, request, value, index, dataLen, timeout)
+        try:
+            data = self.dev.controlRead(CTRL_REQ.INTERFACE_VENDOR_IN, request, value, index, dataLen, timeout)
+        except Exception as e:
+            raise RecomDeviceException.TransportException(e)
+        else:
+            return data
 
     def controlWrite(self, request, data=b'', value=0, index=0, timeout=1000):
-        return self.dev.controlWrite(CTRL_REQ.INTERFACE_VENDOR_OUT, request, value, index, data, timeout)
+        try:
+            status = self.dev.controlWrite(CTRL_REQ.INTERFACE_VENDOR_OUT, request, value, index, data, timeout)
+        except:
+            raise RecomDeviceException.TransportException(e)
+        else:
+            return status
 
     def read(self, dataLen=64, timeout=1000):
-        return self.dev.bulkRead(self.ep_in, dataLen, timeout)
+        try:
+            data = self.dev.bulkRead(self.ep_in, dataLen, timeout)
+        except Exception as e:
+            raise RecomDeviceException.TransportException(e)
+        else:
+            return data
 
     def write(self, data, timeout=1000):
-        return self.dev.bulkWrite(self.ep_out, data, timeout)
+        try:
+            status = self.dev.bulkWrite(self.ep_out, data, timeout)
+        except Exception as e:
+            raise RecomDeviceException.TransportException(e)
+        else:
+            return status

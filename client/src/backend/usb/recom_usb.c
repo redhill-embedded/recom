@@ -153,7 +153,7 @@ static bool recom_usb_add_interface_descriptor(const void *itf_desc, uint32_t it
             desc_union->bControlInterface = intf_idx - 1;
             desc_union->bSubordinateInterface = intf_idx;
         } else {
-            RECOM_INFO("RECOM USBD: Unknown descriptor type %d\n", desc[1]);
+            RECOM_INFO("RECOM USBD: Unknown descriptor type %d\n\r", desc[1]);
         }
         conf_desc_idx += desc[0];   /* Advance index into descriptor array */
         desc += desc[0];            /* Adcance pointer to configuration descriptor */
