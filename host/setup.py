@@ -4,19 +4,22 @@ import setuptools_scm
 
 def git_describe_version(version):
     """
-    Mimics Git's semantic versioning in a PEP 440 compliant way.
+    Produce a PEP 440 compliant version string mimicking `git describe --tags --dirty`.
 
-    - If the current commit exactly matches a tag, return that tag (e.g., "0.1.0").
-    - Otherwise, return "tag.dev<distance>+g<node>" (e.g., "0.1.0.dev33+g66d759e").
-    - Append ".dirty" if the working directory has uncommitted changes.
+    - If the current commit exactly matches a tag, return that tag.
+      If the working directory is dirty, append a local version label, e.g., "0.1.1+dirty".
+    - Otherwise, return "tag.dev<distance>+g<node>".
+      If dirty, append ".dirty" to the local version segment.
     """
     if version.distance == 0:
-        base = version.tag
+        base = str(version.tag)
+        if version.dirty:
+            # Use the plus sign for local version if on a tag but dirty.
+            base = f"{base}+dirty"
     else:
-        # Create a development release segment.
         base = f"{version.tag}.dev{version.distance}+g{version.node}"
-    if version.dirty:
-        base += ".dirty"
+        if version.dirty:
+            base += ".dirty"
     return base
 
 # Determine the repo root
