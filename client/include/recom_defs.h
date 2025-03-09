@@ -76,17 +76,20 @@ typedef enum rec_itf_type {
     eREC_ITF_TYPE_USB_CDC   = 2,
 } rec_itf_type_t;
 
+/* Callbacks for generic interface */
 typedef bool (*rec_ctrl_transfer_cb)(uint8_t itf_num,
                                        struct rec_transport_control *ctrl,
                                        struct rec_message *msg, bool read);
 typedef bool (*rec_data_rx_cb)(uint8_t itf_num,
                                  struct rec_transport_control *ctrl,
                                  uint8_t *data, uint16_t data_len);
-
 typedef bool (*rec_data_tx_complete_cb)(uint8_t itf_num, uint32_t data_len,
                                         bool is_error);
-
 typedef void (*rec_usb_driver_cb)(uint8_t itf_num);
+
+/* Callbacks for CDC interface */
+typedef void (*rec_usb_cdc_state_cb)(uint8_t itf, bool dtr, bool rts);
+typedef void (*rec_usb_cdc_line_coding_cb)(uint8_t itf, void * p_line_coding);
 
 typedef struct rec_usb_generic_itf {
     uint8_t interface_id;
@@ -115,11 +118,19 @@ typedef struct rec_itf {
     uint8_t interface_id;
     uint8_t sub_interface_id;
     enum rec_itf_type type;
-    rec_ctrl_transfer_cb ctrl_cb;
-    rec_data_rx_cb data_rx_cb;
-    rec_data_tx_complete_cb data_tx_complete_cb;
-    rec_usb_driver_cb driver_open_cb;
-    rec_usb_driver_cb driver_reset_cb;
+    union {
+        struct {
+            rec_ctrl_transfer_cb ctrl_cb;
+            rec_data_rx_cb data_rx_cb;
+            rec_data_tx_complete_cb data_tx_complete_cb;
+            rec_usb_driver_cb driver_open_cb;
+            rec_usb_driver_cb driver_reset_cb;
+        } generic;
+        struct {
+            rec_usb_cdc_state_cb state_cb;
+            rec_usb_cdc_line_coding_cb line_coding_cb;
+        } cdc;
+    } cb;
 } rec_itf_t;
 
 #endif /* _RECOM_DEFS_H_ */

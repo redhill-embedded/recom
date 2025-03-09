@@ -48,11 +48,7 @@ bool recom_itf_register(struct rec_itf *itf, struct rec_itf_config *config)
     itf->type = config->type;
 
     /* Set all callback function pointers to NULL */
-    itf->ctrl_cb = NULL;
-    itf->data_rx_cb = NULL;
-    itf->data_tx_complete_cb = NULL;
-    itf->driver_reset_cb = NULL;
-    itf->driver_open_cb = NULL;
+    memset(&itf->cb, 0x00, sizeof(itf->cb));
 
     switch (config->type) {
     case eREC_ITF_TYPE_GENERIC:
@@ -70,37 +66,48 @@ bool recom_itf_register(struct rec_itf *itf, struct rec_itf_config *config)
     return false;
 }
 
-void recom_itf_set_ctrl_callback(struct rec_itf *itf, rec_ctrl_transfer_cb cb)
+bool recom_itf_set_ctrl_callback(struct rec_itf *itf, rec_ctrl_transfer_cb cb)
 {
-    itf->ctrl_cb = cb;
+    if (itf->type == eREC_ITF_TYPE_GENERIC) {
+        return recom_usb_generic_itf_set_ctrl_callback(itf, cb);
+    }
+    return false;
 }
 
-void recom_itf_set_rx_data_callback(struct rec_itf *itf, rec_data_rx_cb cb)
+bool recom_itf_set_rx_data_callback(struct rec_itf *itf, rec_data_rx_cb cb)
 {
-    itf->data_rx_cb = cb;
+    if (itf->type == eREC_ITF_TYPE_GENERIC) {
+        return recom_usb_generic_itf_set_rx_data_callback(itf, cb);
+    }
+    return false;
 }
 
-void recom_itf_set_tx_complete_callback(struct rec_itf *itf, rec_data_tx_complete_cb cb)
+bool recom_itf_set_tx_complete_callback(struct rec_itf *itf, rec_data_tx_complete_cb cb)
 {
-    itf->data_tx_complete_cb = cb;
+    if (itf->type == eREC_ITF_TYPE_GENERIC) {
+        return recom_usb_generic_itf_set_tx_complete_callback(itf, cb);
+    }
+    return false;
 }
 
 uint32_t recom_itf_bytes_available(struct rec_itf *itf)
 {
-    /*
-     * For now this is a simple wrapper around the USB interface.
-     * Replace with backend selector once more backends are added.
-     */
-    return recom_usb_generic_interface_bytes_available(itf);
+    if (itf->type == eREC_ITF_TYPE_GENERIC) {
+        return recom_usb_generic_itf_bytes_available(itf);
+    } else if (itf->type == eREC_ITF_TYPE_USB_CDC) {
+        return recom_usb_cdc_itf_bytes_available(itf);
+    }
+    return 0;
 }
 
 bool recom_itf_read(struct rec_itf *itf, uint8_t *buffer, uint32_t bytes_to_read)
 {
-    /*
-     * For now this is a simple wrapper around the USB interface.
-     * Replace with backend selector once more backends are added.
-     */
-    return recom_usb_generic_interface_read(itf, buffer, bytes_to_read);
+    if (itf->type == eREC_ITF_TYPE_GENERIC) {
+        return recom_usb_generic_itf_read(itf, buffer, bytes_to_read);
+    } else if (itf->type == eREC_ITF_TYPE_USB_CDC) {
+        return recom_usb_cdc_itf_read(itf, buffer, bytes_to_read);
+    }
+    return false;
 }
 
 bool recom_itf_write(struct rec_itf *itf, uint8_t *buffer, uint32_t bytes_to_write)
@@ -109,5 +116,11 @@ bool recom_itf_write(struct rec_itf *itf, uint8_t *buffer, uint32_t bytes_to_wri
      * For now this is a simple wrapper around the USB interface.
      * Replace with backend selector once more backends are added.
      */
-    return recom_usb_generic_interface_write(itf, buffer, bytes_to_write);
+    return recom_usb_generic_itf_write(itf, buffer, bytes_to_write);
+        if (itf->type == eREC_ITF_TYPE_GENERIC) {
+        return recom_usb_generic_itf_write(itf, buffer, bytes_to_write);
+    } else if (itf->type == eREC_ITF_TYPE_USB_CDC) {
+        return recom_usb_cdc_itf_write(itf, buffer, bytes_to_write);
+    }
+    return false;
 }

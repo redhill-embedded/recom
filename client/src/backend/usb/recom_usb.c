@@ -295,8 +295,6 @@ const uint16_t *tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
     (void) langid;
 
-    RECOM_INFO("RECOM USBD: Get string CB!\n\r");
-
     static uint16_t str_desc[32];
 
     uint8_t chr_count;
@@ -369,7 +367,6 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage,
 
 const usbd_class_driver_t *usbd_app_driver_get_cb(uint8_t *countp)
 {
-    RECOM_INFO("RECOM USBD: Get driver CB!\n\r");
     *countp = num_drivers;
     return (const usbd_class_driver_t *) interface_class_drivers;
 }

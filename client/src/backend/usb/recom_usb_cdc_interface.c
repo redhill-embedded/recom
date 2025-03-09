@@ -19,6 +19,15 @@ typedef struct cdc_itf_desc {
     tusb_desc_endpoint_t ep_in;
 } __attribute__((packed)) cdc_itf_desc_t;
 
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
+    return;
+}
+
+/*
+ * ********************
+ * * PUBLIC FUNCTIONS *
+ * ********************
+ */
 
 uint8_t recom_usb_cdc_interface_register(struct rec_itf * itf, struct rec_itf_config *itf_cfg)
 {
@@ -128,7 +137,22 @@ uint8_t recom_usb_cdc_interface_register(struct rec_itf * itf, struct rec_itf_co
     return recom_usb_add_interface(NULL, &cdc_itf_desc, sizeof(cdc_itf_desc), itf_cfg->itf_str);
 }
 
-bool recom_usb_cdc_interface_write(struct rec_itf * itf, uint8_t *p_data, uint32_t num_bytes)
+bool recom_usb_cdc_itf_set_state_callback(struct rec_itf *itf, rec_usb_cdc_state_cb cb)
+{
+    itf->cb.cdc.state_cb = cb;
+    return true;
+}
+
+bool recom_usb_cdc_itf_set_line_coding_callback(struct rec_itf *itf, rec_usb_cdc_line_coding_cb cb)
+{
+    if (cb == NULL) {
+        return false;
+    }
+    itf->cb.cdc.line_coding_cb = cb;
+    return true;
+}
+
+bool recom_usb_cdc_itf_write(struct rec_itf * itf, uint8_t *p_data, uint32_t num_bytes)
 {
     uint32_t bytes_written;
 
@@ -139,12 +163,12 @@ bool recom_usb_cdc_interface_write(struct rec_itf * itf, uint8_t *p_data, uint32
     return true;
 }
 
-uint32_t recom_usb_cdc_interface_bytes_available(struct rec_itf * itf)
+uint32_t recom_usb_cdc_itf_bytes_available(struct rec_itf * itf)
 {
     return tud_cdc_n_available(itf->sub_interface_id);
 }
 
-bool recom_usb_cdc_interface_read(struct rec_itf * itf, uint8_t *p_data, uint32_t num_bytes)
+bool recom_usb_cdc_itf_read(struct rec_itf * itf, uint8_t *p_data, uint32_t num_bytes)
 {
     uint32_t bytes_read;
 

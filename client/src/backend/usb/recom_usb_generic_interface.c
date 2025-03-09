@@ -104,8 +104,8 @@ static void recom_usbd_reset(uint8_t rhport)
         /* Perform any other actions (i.e. FIFO clear) here, if needed */
 
         /* User callback, if present */
-        if (p_itf->parent->driver_reset_cb) {
-            p_itf->parent->driver_reset_cb(p_itf->itf_num);
+        if (p_itf->parent->cb.generic.driver_reset_cb) {
+            p_itf->parent->cb.generic.driver_reset_cb(p_itf->itf_num);
         }
     }
 }
@@ -163,8 +163,8 @@ static uint16_t recom_usbd_open(uint8_t rhport,
     prime_out_ep(p_itf);
 
     /* User callback, if present */
-    if (p_itf->parent->driver_open_cb) {
-        p_itf->parent->driver_open_cb(p_itf->itf_num);
+    if (p_itf->parent->cb.generic.driver_open_cb) {
+        p_itf->parent->cb.generic.driver_open_cb(p_itf->itf_num);
     }
 
     /* Interface open succeeded. We have consumed the entire interface descriptor */
@@ -202,10 +202,10 @@ static bool recom_usbd_control_xfer_cb(__unused uint8_t rhport, uint8_t stage, c
 
     if (request->bmRequestType_bit.direction & TUSB_DIR_IN) {
         if (stage == CONTROL_STAGE_SETUP) {
-            if (p_itf->parent->ctrl_cb != NULL) {
+            if (p_itf->parent->cb.generic.ctrl_cb != NULL) {
                 rec_ctrl_msg.buffer = p_itf->epin_buf;
                 rec_ctrl_msg.data_len = (request->wLength > RECOM_INTERFACE_DATA_BUFFER_SIZE) ? RECOM_INTERFACE_DATA_BUFFER_SIZE : request->wLength;
-                if (p_itf->parent->ctrl_cb(p_itf->itf_num, NULL, &rec_ctrl_msg, true)) {
+                if (p_itf->parent->cb.generic.ctrl_cb(p_itf->itf_num, NULL, &rec_ctrl_msg, true)) {
                     return tud_control_xfer(rhport, request, rec_ctrl_msg.buffer, rec_ctrl_msg.data_len);
                 }
                 return false;
@@ -221,8 +221,8 @@ static bool recom_usbd_control_xfer_cb(__unused uint8_t rhport, uint8_t stage, c
                  * Since no data is sent, the device is required to respond with a status stage
                  * response. This is done by initiating a control transfer without any data.
                  */
-                if (p_itf->parent->ctrl_cb != NULL) {
-                    return p_itf->parent->ctrl_cb(p_itf->itf_num, NULL, &rec_ctrl_msg, false) &&
+                if (p_itf->parent->cb.generic.ctrl_cb != NULL) {
+                    return p_itf->parent->cb.generic.ctrl_cb(p_itf->itf_num, NULL, &rec_ctrl_msg, false) &&
                            tud_control_xfer(rhport, request, NULL, 0);
                 }
                 return false;
@@ -245,8 +245,8 @@ static bool recom_usbd_control_xfer_cb(__unused uint8_t rhport, uint8_t stage, c
              */
             rec_ctrl_msg.buffer = p_itf->rx_buffer;
             rec_ctrl_msg.data_len = request->wLength;
-            if (p_itf->parent->ctrl_cb != NULL) {
-                return p_itf->parent->ctrl_cb(p_itf->itf_num, NULL, &rec_ctrl_msg, false);
+            if (p_itf->parent->cb.generic.ctrl_cb != NULL) {
+                return p_itf->parent->cb.generic.ctrl_cb(p_itf->itf_num, NULL, &rec_ctrl_msg, false);
             }
             return false;
         }
@@ -279,8 +279,8 @@ static bool recom_usbd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t re
         /* Data received from host */
         if (result == XFER_RESULT_SUCCESS &&
             xferred_bytes <= RECOM_INTERFACE_DATA_BUFFER_SIZE) {
-            if (p_itf->parent->data_rx_cb) {
-                ret_val = p_itf->parent->data_rx_cb(p_itf->itf_num, NULL, p_itf->epout_buf,
+            if (p_itf->parent->cb.generic.data_rx_cb) {
+                ret_val = p_itf->parent->cb.generic.data_rx_cb(p_itf->itf_num, NULL, p_itf->epout_buf,
                                (uint16_t) xferred_bytes);
             } else {
                 ret_val = false;
@@ -305,8 +305,8 @@ static bool recom_usbd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t re
                 ret_val = usbd_edpt_xfer(TUD_OPT_RHPORT, p_itf->ep_in,
                                   p_itf->epin_buf, 0);
         }
-        if (p_itf->parent->data_tx_complete_cb) {
-            ret_val = p_itf->parent->data_tx_complete_cb(p_itf->itf_num, xferred_bytes, result!= XFER_RESULT_SUCCESS);
+        if (p_itf->parent->cb.generic.data_tx_complete_cb) {
+            ret_val = p_itf->parent->cb.generic.data_tx_complete_cb(p_itf->itf_num, xferred_bytes, result!= XFER_RESULT_SUCCESS);
         }
     }
 
@@ -385,7 +385,25 @@ uint8_t recom_usb_generic_interface_register(struct rec_itf * itf, struct rec_it
     return recom_usb_add_interface(&recom_itf_drv, &recom_itf_desc, sizeof(recom_itf_desc), itf_cfg->itf_str);
 }
 
-bool recom_usb_generic_interface_write(struct rec_itf *itf, uint8_t *p_data, uint32_t num_bytes)
+bool recom_usb_generic_itf_set_ctrl_callback(struct rec_itf *itf, rec_ctrl_transfer_cb cb)
+{
+    itf->cb.generic.ctrl_cb = cb;
+    return true;
+}
+
+bool recom_usb_generic_itf_set_rx_data_callback(struct rec_itf *itf, rec_data_rx_cb cb)
+{
+    itf->cb.generic.data_rx_cb = cb;
+    return true;
+}
+
+bool recom_usb_generic_itf_set_tx_complete_callback(struct rec_itf *itf, rec_data_tx_complete_cb cb)
+{
+    itf->cb.generic.data_tx_complete_cb = cb;
+    return true;
+}
+
+bool recom_usb_generic_itf_write(struct rec_itf *itf, uint8_t *p_data, uint32_t num_bytes)
 {
     struct rec_usb_intf *p_itf;
 
@@ -403,12 +421,12 @@ bool recom_usb_generic_interface_write(struct rec_itf *itf, uint8_t *p_data, uin
     return usbd_edpt_xfer(TUD_OPT_RHPORT, p_itf->ep_in, p_itf->epin_buf, num_bytes);
 }
 
-uint32_t recom_usb_generic_interface_bytes_available(struct rec_itf *itf)
+uint32_t recom_usb_generic_itf_bytes_available(struct rec_itf *itf)
 {
     return 0;
 }
 
-bool recom_usb_generic_interface_read(struct rec_itf *itf, uint8_t *p_data, uint32_t num_bytes)
+bool recom_usb_generic_itf_read(struct rec_itf *itf, uint8_t *p_data, uint32_t num_bytes)
 {
     return true;
 }
