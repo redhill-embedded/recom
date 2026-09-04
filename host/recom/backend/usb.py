@@ -176,11 +176,22 @@ class USBDevice(RecomBackend):
             else:
                 raise RecomDeviceException.Generic(e)
 
-        # Find all interfaces
+        # Find all interfaces. bInterfaceClass == VENDOR_SPECIFIC alone
+        # doesn't identify a RECom interface -- RECom's own firmware-side
+        # registration (recom_usb_generic/cdc_interface_register()) lets
+        # the application choose the subclass/protocol values freely, so
+        # they carry no RECom-specific marker. What every RECom-registered
+        # interface *does* always have is exactly one bulk OUT and one
+        # bulk IN endpoint, so that's used as a proxy to tell them apart
+        # from any other vendor-specific interface the device may expose
+        # (e.g. a data path unrelated to RECom) -- otherwise such an
+        # interface would be picked up here and trip USBInterface's
+        # endpoint-pair assumption below.
         for config in self.handle.iterConfigurations():
             for interface in config.iterInterfaces():
                 for setting in interface.iterSettings():
-                    if setting.getClass() == self.CLASS_VENDOR:
+                    if setting.getClass() == self.CLASS_VENDOR and \
+                            len(list(setting.iterEndpoints())) == 2:
                         self.interfaces.append(USBInterface(self.dev, setting))
 
     def close(self):
