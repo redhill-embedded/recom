@@ -69,6 +69,35 @@ def reset_device(reset_option, device_id, serial):
         return
     dev.reset(reset_option)
 
+def run_log(device_id, serial):
+    if device_id is not None or serial is not None:
+        try:
+            dev = RecomDevice(id=device_id, serial=serial)
+        except RecomDeviceException as dev_exp:
+            print(dev_exp)
+            return
+        print(dev.getLog(), end="")
+        return
+
+    # No device specified: dump every connected Recom device's log,
+    # the same way `--scan` enumerates every connected device.
+    dev_list = []
+    for be in backends:
+        be_devices = be.find()
+        if be_devices is not None:
+            dev_list.extend(be_devices)
+    found_any = False
+    for s_dev in dev_list:
+        try:
+            dev = RecomDevice(device=s_dev)
+        except Exception:
+            continue
+        found_any = True
+        print(f"{dev}:")
+        print(dev.getLog(), end="")
+    if not found_any:
+        print("No Recom devices found.")
+
 def diag_env(save_report=False):
     # System Information
     print(f"\nSystem Information:")
@@ -138,6 +167,8 @@ def print_info():
     print("    - Scan for Recom-enabled boards ('--scan' option)")
     print("    - Look for a particular board based on its device ID (i.e. VID/PID) or serial number.")
     print("      Use the '-d' parameter to sepcify the device ID and '-S' for the serial number.")
+    print("    - Extract and print a board's log ('log' command, optionally with '-d'/'-S';")
+    print("      without either, every connected Recom device's log is printed).")
     print("*****\n")
 
 def cli(argv):
@@ -170,6 +201,8 @@ def cli(argv):
             reset_device(rst_opt, args.device, args.serial)
         else:
             print("Please provide either a device ID or a device serial number")
+    elif args.cmd == "log":
+        run_log(args.device, args.serial)
     elif args.cmd == "env":
         diag_env(args.report)
     else:
