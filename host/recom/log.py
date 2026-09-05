@@ -118,6 +118,57 @@ def format_log(raw, dedupe=True):
     return "".join(r.text + "\n" for r in parse(raw, dedupe=dedupe))
 
 
+class LogFollower:
+    """Tracks what has already been shown from a device whose *entire* log
+    blob is re-read on every poll, so a caller looping over ``feed()``
+    prints each record exactly once. This is what backs ``recom log -f``.
+
+    The device exposes no read cursor -- every read returns the whole
+    currently-buffered log (see ``RecomDevice.getLogBytes``) -- so this
+    keeps a watermark (the last record it handed back) and, next poll,
+    returns only the records that follow it.
+
+    It stays correct across the things that shift the blob between polls:
+    the ring buffer dropping old entries off the front, a torn read, and
+    the device rebooting (its timestamps restart, so the buffer is
+    replayed once). If polling falls so far behind that the watermark
+    itself has scrolled out of the buffer, the entries between it and the
+    oldest survivor are simply gone and cannot be shown -- ``feed()``
+    resumes from the oldest record newer than the watermark rather than
+    reprinting.
+    """
+
+    def __init__(self):
+        self._watermark = None
+
+    def feed(self, raw):
+        """Given the latest raw log blob, return the :class:`Record` list
+        not yet returned by an earlier ``feed()``, oldest first."""
+        records = parse(raw)
+        new = self._select_new(records)
+        if new:
+            self._watermark = new[-1]
+        return new
+
+    def _select_new(self, records):
+        wm = self._watermark
+        if wm is None:
+            return records
+
+        for i in range(len(records) - 1, -1, -1):
+            if records[i] == wm:
+                return records[i + 1:]
+
+        # Watermark not in this blob. If every record now predates it, the
+        # device's clock went backwards -- a reboot (or, once every ~49
+        # days of uptime, a 32-bit tick counter wrapping) -- so replay the
+        # whole buffer. Otherwise the buffer turned over faster than we
+        # polled; resume from whatever is newer than the watermark.
+        if records and records[-1].timestamp < wm.timestamp:
+            return records
+        return [r for r in records if r.timestamp > wm.timestamp]
+
+
 def validate(raw, allow_leading_fragment=True):
     """Check ``raw`` against the framing contract; return a list of
     :class:`Problem` (empty means it conforms).

@@ -13,7 +13,7 @@ wrapped, so this doubles as the conformance check for that contract.
 import unittest
 
 from recom import log
-from recom.log import Record, parse, format_log, validate
+from recom.log import Record, parse, format_log, validate, LogFollower
 
 
 def line(ts, msg, level="INFO", task="T"):
@@ -119,6 +119,61 @@ class ValidateTests(unittest.TestCase):
 
     def test_reports_no_records_for_nonempty_unparsable_blob(self):
         self.assertEqual([p.kind for p in validate(b"just some noise")], ["no-records"])
+
+
+class LogFollowerTests(unittest.TestCase):
+    def texts(self, records):
+        return [r.text for r in records]
+
+    def test_first_feed_returns_the_whole_buffer(self):
+        f = LogFollower()
+        self.assertEqual(self.texts(f.feed(blob(line(1, "a"), line(2, "b")))),
+                         ["#1-INFO: [T] a", "#2-INFO: [T] b"])
+
+    def test_overlapping_feed_returns_only_the_new_records(self):
+        f = LogFollower()
+        f.feed(blob(line(1, "a"), line(2, "b")))
+        out = f.feed(blob(line(1, "a"), line(2, "b"), line(3, "c"), line(4, "d")))
+        self.assertEqual(self.texts(out), ["#3-INFO: [T] c", "#4-INFO: [T] d"])
+
+    def test_feed_with_nothing_new_returns_empty(self):
+        f = LogFollower()
+        f.feed(blob(line(1, "a"), line(2, "b")))
+        self.assertEqual(f.feed(blob(line(1, "a"), line(2, "b"))), [])
+
+    def test_watermark_advances_across_successive_feeds(self):
+        f = LogFollower()
+        f.feed(blob(line(1, "a")))
+        f.feed(blob(line(1, "a"), line(2, "b")))
+        out = f.feed(blob(line(1, "a"), line(2, "b"), line(3, "c")))
+        self.assertEqual(self.texts(out), ["#3-INFO: [T] c"])
+
+    def test_feed_tolerates_the_front_of_the_buffer_dropping_off(self):
+        f = LogFollower()
+        f.feed(blob(line(1, "a"), line(2, "b"), line(3, "c")))
+        # Ring buffer wrapped: entry 1 half-eaten, entry 4 appended.
+        out = f.feed(b"NFO: [T] a\n" + blob(line(2, "b"), line(3, "c"), line(4, "d")))
+        self.assertEqual(self.texts(out), ["#4-INFO: [T] d"])
+
+    def test_feed_resumes_when_the_watermark_has_scrolled_out(self):
+        f = LogFollower()
+        f.feed(blob(line(1, "a"), line(2, "b")))
+        # Polled too slowly; ts=2 is gone, only newer entries remain.
+        out = f.feed(blob(line(5, "e"), line(6, "f")))
+        self.assertEqual(self.texts(out), ["#5-INFO: [T] e", "#6-INFO: [T] f"])
+
+    def test_feed_replays_the_buffer_after_a_device_reboot(self):
+        f = LogFollower()
+        f.feed(blob(line(40, "old"), line(41, "older")))
+        out = f.feed(blob(line(0, "boot"), line(1, "up")))
+        self.assertEqual(self.texts(out), ["#0-INFO: [T] boot", "#1-INFO: [T] up"])
+
+    def test_feed_ignores_a_torn_trailing_line_until_it_completes(self):
+        f = LogFollower()
+        first = f.feed(blob(line(1, "a")) + b"#2-INFO: [T] hal")
+        self.assertEqual(self.texts(first), ["#1-INFO: [T] a"])
+        out = f.feed(blob(line(1, "a"), line(2, "half")))
+        self.assertEqual(self.texts(out), ["#2-INFO: [T] half"])
 
 
 class ModuleSurfaceTests(unittest.TestCase):

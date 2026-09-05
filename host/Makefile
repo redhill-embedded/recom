@@ -1,7 +1,11 @@
 # Makefile for packaging and publishing a Python package
 
 # Mark targets as phony so that they run even if files with these names exist.
-.PHONY: package publish clean
+.PHONY: package publish clean test
+
+# Run the host-side unit tests (stdlib unittest, no extra dependencies).
+test:
+	python -m unittest discover -s tests
 
 # The 'package' target builds both a source distribution and a wheel.
 package: clean
