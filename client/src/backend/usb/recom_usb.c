@@ -199,7 +199,14 @@ static bool recom_control_request(uint8_t rhport, const tusb_control_request_t *
         /* IN transfer means this is a 'read' request */
         rec_msg.buffer = data_in;
         ret = rec_bdev_process_msg(&rec_ctrl, &rec_msg, true);
-        if (ret == true && rec_msg.data_len > 0) {
+        if (ret == true) {
+            /* Complete the data stage even when data_len is 0 -- a
+             * successful read with nothing to return (e.g. CMD_LOG_READ
+             * once the requested offset has caught up to the end of the
+             * log) is a valid, ordinary zero-length IN completion, not a
+             * reason to skip tud_control_xfer(): without it, TinyUSB
+             * never sends anything back and the host's request times out
+             * waiting for a response that was never going to arrive. */
             return tud_control_xfer(rhport, request, data_in, rec_msg.data_len);
         }
         return ret;

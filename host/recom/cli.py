@@ -10,6 +10,7 @@ import recom
 from recom.device import RecomDevice, RecomDeviceException
 from recom.device import RESET
 from recom.backend import backends
+from recom.log import format_log
 
 def print_recom_dev_info(dev, verbose):
     print("%s - HW ID/Rev: 0x%04X / 0x%04X" % (dev, dev.hw_id, dev.hw_revision))
@@ -69,6 +70,23 @@ def reset_device(reset_option, device_id, serial):
         return
     dev.reset(reset_option)
 
+def dump_log(dev):
+    """Prints one device's log as whole, ordered records.
+
+    getLog() already drops partial lines and orders the rest; the extra
+    step here is only so an empty result can be reported as either "no log
+    on the device" or "log data that did not parse" rather than silence.
+    """
+    raw = dev.getLogBytes()
+    text = format_log(raw)
+    if text:
+        print(text, end="")
+    elif raw:
+        print("  <%d bytes of log data, but no complete records could be parsed "
+              "from it>" % len(raw))
+    else:
+        print("  <no log data>")
+
 def run_log(device_id, serial):
     if device_id is not None or serial is not None:
         try:
@@ -76,7 +94,7 @@ def run_log(device_id, serial):
         except RecomDeviceException as dev_exp:
             print(dev_exp)
             return
-        print(dev.getLog(), end="")
+        dump_log(dev)
         return
 
     # No device specified: dump every connected Recom device's log,
@@ -94,7 +112,7 @@ def run_log(device_id, serial):
             continue
         found_any = True
         print(f"{dev}:")
-        print(dev.getLog(), end="")
+        dump_log(dev)
     if not found_any:
         print("No Recom devices found.")
 

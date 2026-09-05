@@ -6,6 +6,7 @@ from recom.backend import backends
 from recom.backend.backend import RecomDeviceDescriptor
 from recom.interface import RecomInterface
 from recom.exceptions import RecomDeviceException
+from recom.log import format_log
 
 # Recom device identifier. DO NOT CHANGE!
 RECOM_DEV_ID = 0x53C08A30
@@ -143,8 +144,16 @@ class BaseDevice:
         return b"".join(chunks)
 
     def getLog(self):
-        """getLogBytes(), decoded as text for display."""
-        return self.getLogBytes().decode("utf-8", errors="replace")
+        """The device's log as whole, timestamp-ordered records, ready to
+        print (one record per line, newline-terminated).
+
+        The raw bytes from getLogBytes() are carved from a ring buffer and
+        so usually start partway through a line, and can carry a torn last
+        line or briefly out-of-order lines; recom.log.format_log() drops
+        the partials and orders the rest. Use getLogBytes() for the
+        unprocessed blob.
+        """
+        return format_log(self.getLogBytes())
 
 class RecomDevice(BaseDevice):
 
