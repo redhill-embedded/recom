@@ -185,7 +185,7 @@ static struct rec_message rec_msg;
 static bool recom_control_request(uint8_t rhport, const tusb_control_request_t * request, bool dir_is_out)
 {
     bool ret;
-    
+
     rec_msg.cmd = request->bRequest;
     rec_msg.index = request->wIndex;
     rec_msg.value = request->wValue;

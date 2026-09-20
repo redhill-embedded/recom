@@ -15,6 +15,20 @@
 #define DEFAULT_EP_OUT  (0x00)
 #define DEFAULT_EP_IN   (0x80)
 
+/* usbd_edpt_xfer() gained a trailing `is_isr` parameter in TinyUSB 0.20.0
+ * (commit 27415e61, "Add is_isr parameter to usbd_edpt_xfer and
+ * usbd_edpt_xfer_fifo") -- this file is built against both an older
+ * pico-sdk-bundled TinyUSB (RP2040/RP2350, currently 0.18.0) and a newer
+ * one (STM32C5, currently 0.21.0), so it cannot assume either signature
+ * unconditionally. */
+#if TUSB_VERSION_NUMBER >= 2000
+    #define RECOM_USBD_EDPT_XFER(rhport, ep, buf, len, is_isr) \
+        usbd_edpt_xfer((rhport), (ep), (buf), (len), (is_isr))
+#else
+    #define RECOM_USBD_EDPT_XFER(rhport, ep, buf, len, is_isr) \
+        usbd_edpt_xfer((rhport), (ep), (buf), (len))
+#endif
+
 static uint8_t itf_count = 0;
 
 typedef struct rec_usb_itf_desc {
@@ -30,8 +44,8 @@ typedef struct rec_usb_intf {
 
     /*------------- From this point, data is not cleared by bus reset -------------*/
     // Endpoint Transfer buffer
-    CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EP_BUFSIZE];
-    CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EP_BUFSIZE];
+    CFG_TUSB_MEM_ALIGN uint8_t epout_buf[RECOM_INTERFACE_DATA_BUFFER_SIZE];
+    CFG_TUSB_MEM_ALIGN uint8_t epin_buf[RECOM_INTERFACE_DATA_BUFFER_SIZE];
 
     /*------------- From this point, data is not cleared by driver init -------------*/
     uint8_t interface_id;
@@ -62,8 +76,9 @@ static bool prime_out_ep(struct rec_usb_intf *recom_usb_itf)
      */
     if (!usbd_edpt_claim(TUD_OPT_RHPORT, recom_usb_itf->ep_out))
         return false;
-    return usbd_edpt_xfer(TUD_OPT_RHPORT, recom_usb_itf->ep_out,
-                          recom_usb_itf->epout_buf, sizeof(recom_usb_itf->epout_buf));
+    return RECOM_USBD_EDPT_XFER(TUD_OPT_RHPORT, recom_usb_itf->ep_out,
+                                recom_usb_itf->epout_buf, sizeof(recom_usb_itf->epout_buf),
+                                false);
 }
 
 /* Primes the IN endpoint for data transmission */
@@ -76,8 +91,9 @@ static bool prime_in_ep(struct rec_usb_intf *recom_usb_itf)
      */
     if (!usbd_edpt_claim(TUD_OPT_RHPORT, recom_usb_itf->ep_in))
         return false;
-    return usbd_edpt_xfer(TUD_OPT_RHPORT, recom_usb_itf->ep_in,
-                          recom_usb_itf->epin_buf, sizeof(recom_usb_itf->epin_buf));
+    return RECOM_USBD_EDPT_XFER(TUD_OPT_RHPORT, recom_usb_itf->ep_in,
+                                recom_usb_itf->epin_buf, sizeof(recom_usb_itf->epin_buf),
+                                false);
 }
 
 /*
@@ -302,8 +318,8 @@ static bool recom_usbd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t re
          */
         if (result == XFER_RESULT_SUCCESS &&
             xferred_bytes > 0 && xferred_bytes % 64 == 0) {
-                ret_val = usbd_edpt_xfer(TUD_OPT_RHPORT, p_itf->ep_in,
-                                  p_itf->epin_buf, 0);
+                ret_val = RECOM_USBD_EDPT_XFER(TUD_OPT_RHPORT, p_itf->ep_in,
+                                               p_itf->epin_buf, 0, true);
         }
         if (p_itf->parent->data_tx_complete_cb) {
             ret_val = p_itf->parent->data_tx_complete_cb(p_itf->itf_num, xferred_bytes, result!= XFER_RESULT_SUCCESS);
@@ -400,7 +416,7 @@ bool recom_usb_generic_interface_write(struct rec_itf *itf, uint8_t *p_data, uin
         return false;
 
     memcpy(p_itf->epin_buf, p_data, num_bytes);
-    return usbd_edpt_xfer(TUD_OPT_RHPORT, p_itf->ep_in, p_itf->epin_buf, num_bytes);
+    return RECOM_USBD_EDPT_XFER(TUD_OPT_RHPORT, p_itf->ep_in, p_itf->epin_buf, num_bytes, false);
 }
 
 uint32_t recom_usb_generic_interface_bytes_available(struct rec_itf *itf)
