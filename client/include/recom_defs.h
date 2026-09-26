@@ -62,6 +62,7 @@ enum rec_bdev_req_type {
     REC_BDEV_CMD_SERIAL     = 4,
     REC_BDEV_CMD_RESET      = 5,
     REC_BDEV_CMD_GET_INTF   = 6,
+    REC_BDEV_CMD_LOG_READ   = 7,
 };
 
 enum rec_bdev_reset_opt {

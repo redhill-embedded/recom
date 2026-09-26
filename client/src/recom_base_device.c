@@ -31,6 +31,16 @@ __attribute__((weak)) bool rec_device_reset_cb(uint8_t reset_option)
     return false;
 }
 
+/* Copies up to max_len bytes of the device's log into buffer, starting
+ * at logical byte `offset` from the oldest byte still available (0 =
+ * oldest). Returns the number of bytes copied; the default (no log
+ * available) returns 0, which read() below also treats as "no data at
+ * or beyond offset". */
+__attribute__((weak)) size_t rec_device_log_read_cb(uint16_t offset, uint8_t *buffer, size_t max_len)
+{
+    return 0;
+}
+
 
 bool rec_bdev_process_msg(struct rec_transport_control *ctrl, struct rec_message *msg, bool read)
 {
@@ -120,6 +130,20 @@ bool rec_bdev_process_msg(struct rec_transport_control *ctrl, struct rec_message
     case REC_BDEV_CMD_GET_INTF:
         if (read) {
 
+        } else {
+            return false;
+        }
+        break;
+
+    case REC_BDEV_CMD_LOG_READ:
+        if (read) {
+            size_t n = rec_device_log_read_cb(msg->index, msg->buffer, ctrl->max_data_len);
+            if (n > ctrl->max_data_len) {
+                /* rec_device_log_read_cb() violated its own contract. */
+                return false;
+            }
+            msg->data_len = (uint16_t) n;
+            return true;
         } else {
             return false;
         }

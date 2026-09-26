@@ -1,0 +1,13 @@
+# Runtime dependencies for the recom host package.
+#
+# This mirrors `install_requires` in setup.py, which is the source of
+# truth when recom is installed as a package (`pip install .`). This file
+# is here for the plain "set up a working tree" case:
+#
+#     pip install -r requirements.txt
+#
+# Keep the two lists in sync.
+libusb1
+pyserial
+pyudev
+psutil

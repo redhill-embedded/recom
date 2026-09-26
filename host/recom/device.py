@@ -6,6 +6,7 @@ from recom.backend import backends
 from recom.backend.backend import RecomDeviceDescriptor
 from recom.interface import RecomInterface
 from recom.exceptions import RecomDeviceException
+from recom.log import format_log
 
 # Recom device identifier. DO NOT CHANGE!
 RECOM_DEV_ID = 0x53C08A30
@@ -18,6 +19,13 @@ class BASE_DEV_CMDS(enum.IntEnum):
     CMD_SERIAL          = 0x04,
     CMD_RESET           = 0x05,
     CMD_GET_INTERFACES  = 0x06,
+    CMD_LOG_READ        = 0x07,
+
+# Chunk size for CMD_LOG_READ. Must not exceed the device's own
+# control-transfer buffer (RECOM_INTERFACE_DATA_BUFFER_SIZE in
+# client/include/recom_config.h, 64 bytes by default) -- a device may
+# return less per chunk, never more.
+LOG_READ_CHUNK_SIZE = 64
 
 class RESET(enum.IntEnum):
     RCM_DEV_RST_REBOOT      = 0x00,     # Reset the device back to the application
@@ -109,6 +117,43 @@ class BaseDevice:
         # Send a reset command
         data = struct.pack("B", reset)
         self._comsBackend.write(BASE_DEV_CMDS.CMD_RESET, data)
+
+    def getLogBytes(self):
+        """Reads and reassembles the device's currently available log as
+        raw bytes.
+
+        Reads CMD_LOG_READ in LOG_READ_CHUNK_SIZE chunks starting at
+        offset 0 (the oldest byte available), advancing by the bytes
+        actually returned each time, until a chunk comes back short --
+        which also correctly ends a log whose length is an exact
+        multiple of the chunk size, since the next read then returns 0.
+
+        The device may keep logging while this runs, so the result is a
+        best-effort snapshot, not an atomic one.
+        """
+        chunks = []
+        offset = 0
+        while True:
+            data = self._comsBackend.read(BASE_DEV_CMDS.CMD_LOG_READ, index=offset,
+                                          dataLen=LOG_READ_CHUNK_SIZE)
+            if data:
+                chunks.append(bytes(data))
+            if len(data) < LOG_READ_CHUNK_SIZE:
+                break
+            offset += len(data)
+        return b"".join(chunks)
+
+    def getLog(self):
+        """The device's log as whole, timestamp-ordered records, ready to
+        print (one record per line, newline-terminated).
+
+        The raw bytes from getLogBytes() are carved from a ring buffer and
+        so usually start partway through a line, and can carry a torn last
+        line or briefly out-of-order lines; recom.log.format_log() drops
+        the partials and orders the rest. Use getLogBytes() for the
+        unprocessed blob.
+        """
+        return format_log(self.getLogBytes())
 
 class RecomDevice(BaseDevice):
 

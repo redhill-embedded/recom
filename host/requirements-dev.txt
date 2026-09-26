@@ -1,0 +1,7 @@
+# Development and test dependencies, on top of the runtime ones.
+#
+#     pip install -r requirements-dev.txt
+#
+# Then run the test suite with `pytest` (or `make test`).
+-r requirements.txt
+pytest
