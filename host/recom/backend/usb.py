@@ -1,8 +1,14 @@
 import enum
+import time
+
 import usb1
 
-from recom.backend.backend import RecomBackend, RecomDeviceDescriptor
+from recom.backend.backend import DeviceIdentity, RecomBackend, RecomDeviceDescriptor
 from recom.exceptions import RecomDeviceException
+
+# How often the bus is re-scanned while waiting for a device to go away or
+# come back (e.g. across a firmware-update reboot).
+USB_POLL_INTERVAL = 0.1
 
 def _to_device_descriptor(device)-> RecomDeviceDescriptor:
     device_id = (device.getVendorID(), device.getProductID())
@@ -106,6 +112,84 @@ def get_vid_pid_on_port(port_path)-> tuple:
             if dev.getPortNumberList() == port_path:
                 return (dev.getVendorID(), dev.getProductID())
     return None
+
+def _usb_location(dev) -> tuple:
+    """Bus number and port chain: where a device is plugged in."""
+    return (dev.getBusNumber(), tuple(dev.getPortNumberList()))
+
+
+def _find_at(ctx, identity: DeviceIdentity):
+    """The device currently attached at identity's location, if any."""
+    for dev in ctx.getDeviceIterator(skip_on_error=True):
+        try:
+            if _usb_location(dev) == identity.location:
+                return dev
+        except usb1.USBError:
+            continue
+    return None
+
+
+def _open_matches(dev, identity: DeviceIdentity) -> bool:
+    """Whether ``dev`` is identity's device and can be opened now. Opening
+    can fail for a moment after a device appears -- udev permissions on
+    Linux, WinUSB driver load on Windows -- which counts as "not yet"."""
+    if (dev.getVendorID(), dev.getProductID()) != tuple(identity.dev_id):
+        return False
+    try:
+        handle = dev.open()
+    except usb1.USBError:
+        return False
+    try:
+        if identity.serial is not None:
+            try:
+                return handle.getSerialNumber() == identity.serial
+            except usb1.USBError:
+                return False
+        return True
+    finally:
+        handle.close()
+
+
+def wait_for_usb_disconnect(identity: DeviceIdentity, timeout: float) -> bool:
+    """Waits until nothing is attached at identity's location any more, or
+    something with a different device address is (it already re-attached).
+    Returns False on timeout."""
+    deadline = time.monotonic() + timeout
+    while True:
+        with usb1.USBContext() as ctx:
+            dev = _find_at(ctx, identity)
+            if dev is None or dev.getDeviceAddress() != identity.instance:
+                return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(USB_POLL_INTERVAL)
+
+
+def wait_for_usb_reconnect(identity: DeviceIdentity, timeout: float):
+    """Waits until identity's device is attached again and can be opened.
+
+    Looks at the same bus location first (same VID:PID, and the same serial
+    number if one is known). If the device has a serial number, it is also
+    found if it comes back on a different port. Returns a
+    RecomDeviceDescriptor, or None on timeout.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        with usb1.USBContext() as ctx:
+            dev = _find_at(ctx, identity)
+            if dev is not None and _open_matches(dev, identity):
+                return _to_device_descriptor(dev)
+            if identity.serial is not None:
+                for dev in ctx.getDeviceIterator(skip_on_error=True):
+                    try:
+                        if _open_matches(dev, identity):
+                            return _to_device_descriptor(dev)
+                    except usb1.USBError:
+                        continue
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(USB_POLL_INTERVAL)
+
 
 class CTRL_REQ(enum.IntEnum):
     DEVICE_VENDOR_OUT = 0x40
@@ -244,6 +328,28 @@ class USBDevice(RecomBackend):
                 if itf_identifier in itf.itf_str:
                     return itf
         return None
+
+    def get_identity(self) -> DeviceIdentity:
+        serial = None
+        try:
+            serial = self.dev.getSerialNumber() if self.dev else self.handle.getSerialNumber()
+        except usb1.USBError:
+            pass
+        return DeviceIdentity(
+            type="usb",
+            dev_id=(self.handle.getVendorID(), self.handle.getProductID()),
+            location=_usb_location(self.handle),
+            serial=serial or None,
+            instance=self.handle.getDeviceAddress(),
+        )
+
+    @classmethod
+    def wait_for_disconnect(cls, identity: DeviceIdentity, timeout: float) -> bool:
+        return wait_for_usb_disconnect(identity, timeout)
+
+    @classmethod
+    def wait_for_reconnect(cls, identity: DeviceIdentity, timeout: float):
+        return wait_for_usb_reconnect(identity, timeout)
 
     def get_device_path(self):
         """Returns a backend-specific USB device path that is unique for this device"""
