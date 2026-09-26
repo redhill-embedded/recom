@@ -33,6 +33,15 @@
 #define RECOM_DEBUG(...) ((void) 0)
 #endif
 
+/* USB only: vendor request code Windows uses to fetch RECom's Microsoft OS
+ * 2.0 descriptor set (bRequest). Reserved -- never a base-device command. */
+#define REC_MS_OS_20_VENDOR_CODE    (0xF0)
+
+/* USB only: subclass/protocol of RECom's built-in, endpoint-less control
+ * interface (always interface 0; see recom_usb.c). */
+#define REC_CTRL_ITF_SUBCLASS       (0x52)  /* 'R' */
+#define REC_CTRL_ITF_PROTOCOL       (0x43)  /* 'C' */
+
 enum rec_transport_type {
     eREC_TRANSPORT_TYPE_NONE = 0,
     eREC_TRANSPORT_TYPE_USB,
