@@ -16,7 +16,7 @@
 /* Recom protocol version
  * This is increased every-time a protocol change is made.
  */
-#define RECOM_PROTOCOL_VER  (0x0001)
+#define RECOM_PROTOCOL_VER  (0x0002)
 
 /* Size of the buffers RECom uses for base-device requests (one request's
  * payload, in either direction). This bounds, e.g., the firmware-update
@@ -79,6 +79,15 @@ enum rec_bdev_req_type {
     REC_BDEV_CMD_RESET      = 5,
     REC_BDEV_CMD_GET_INTF   = 6,
     REC_BDEV_CMD_LOG_READ   = 7,
+    /* Firmware update (protocol version 2+), see recom_fw_update.h */
+    REC_BDEV_CMD_FW_INFO        = 8,
+    REC_BDEV_CMD_FW_BEGIN       = 9,
+    REC_BDEV_CMD_FW_DATA        = 10,
+    REC_BDEV_CMD_FW_FINISH      = 11,
+    REC_BDEV_CMD_FW_APPLY       = 12,
+    REC_BDEV_CMD_FW_ABORT       = 13,
+    REC_BDEV_CMD_FW_STATUS      = 14,
+    REC_BDEV_CMD_FW_IMAGE_INFO  = 15,
 };
 
 enum rec_bdev_reset_opt {
