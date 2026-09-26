@@ -403,20 +403,12 @@ bool recom_usb_init(struct rec_config *cfg)
 
 bool recom_usb_task(void)
 {
-    /* Not tud_task(): that's tud_task_ext(UINT32_MAX, false) (see TinyUSB's
-     * usbd.h), an indefinite blocking wait on TinyUSB's internal event
-     * queue. Harmless on RP2040 -- its Pico-SDK OSAL backend
-     * (osal_pico.h's osal_queue_receive()) ignores the timeout argument
-     * entirely and always behaves as non-blocking -- but on a real RTOS
-     * backend (this call is shared with the STM32C5 build's FreeRTOS
-     * OSAL) it genuinely blocks until the next USB event, which may never
-     * come: confirmed on hardware that recom_task_fn()'s post-reset
-     * settle loop (a few extra back-to-back recom_task() calls with no
-     * new host traffic expected in between) hangs forever in exactly this
-     * call the moment the host stops talking, since nothing else is left
-     * to wake it. A 0ms timeout keeps this call's contract the same for
-     * every caller -- process whatever's already queued and return --
-     * without ever blocking. */
+    /* Process pending USB events without blocking. tud_task() is
+     * tud_task_ext(UINT32_MAX, false): with an RTOS OSAL that honours the
+     * timeout it waits indefinitely for the next event, so a caller that
+     * polls recom_task() -- e.g. to flush a control transfer's status stage
+     * before resetting -- hangs once the host goes quiet. Callers looping
+     * on recom_task() should yield between calls. */
     tud_task_ext(0, false);
     return true;
 }
