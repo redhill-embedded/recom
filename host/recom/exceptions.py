@@ -20,5 +20,9 @@ class RecomDeviceException(Exception):
     class TransportException(Exception):
         pass
 
+    class RequestRejected(TransportException):
+        """The device refused a request (a USB control request STALL)."""
+        pass
+
     class Generic(Exception):
         pass

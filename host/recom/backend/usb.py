@@ -204,10 +204,22 @@ class USBDevice(RecomBackend):
                 self.dev = None
 
     def read(self, request, value=0, index=0, dataLen=512, timeout=1000):
-        return self.dev.controlRead(CTRL_REQ.DEVICE_VENDOR_IN, request, value, index, dataLen, timeout)
+        try:
+            return self.dev.controlRead(CTRL_REQ.DEVICE_VENDOR_IN, request, value, index,
+                                        dataLen, timeout)
+        except usb1.USBErrorPipe as e:
+            raise RecomDeviceException.RequestRejected(e) from None
+        except usb1.USBError as e:
+            raise RecomDeviceException.TransportException(e) from None
 
     def write(self, request, data=b'', value=0, index=0, timeout=1000):
-        return self.dev.controlWrite(CTRL_REQ.DEVICE_VENDOR_OUT, request, value, index, data, timeout)
+        try:
+            return self.dev.controlWrite(CTRL_REQ.DEVICE_VENDOR_OUT, request, value, index,
+                                         data, timeout)
+        except usb1.USBErrorPipe as e:
+            raise RecomDeviceException.RequestRejected(e) from None
+        except usb1.USBError as e:
+            raise RecomDeviceException.TransportException(e) from None
 
     def get_interface_list(self):
         itf_list = []
