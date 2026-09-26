@@ -18,6 +18,13 @@
  */
 #define RECOM_PROTOCOL_VER  (0x0001)
 
+/* Size of the buffers RECom uses for base-device requests (one request's
+ * payload, in either direction). This bounds, e.g., the firmware-update
+ * chunk size (see REC_BDEV_CMD_FW_DATA). Override in recom_config.h. */
+#ifndef RECOM_CTRL_BUFFER_SIZE
+#define RECOM_CTRL_BUFFER_SIZE  (64)
+#endif
+
 #ifndef RECOM_INFO
 #define RECOM_INFO(...) ((void) 0)
 #endif

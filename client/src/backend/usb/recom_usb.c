@@ -172,12 +172,12 @@ static bool recom_usb_add_interface_descriptor(const void *itf_desc, uint32_t it
 // RECOM USB processing function(s)
 //--------------------------------------------------------------------+
 
-static uint8_t data_out[64];
-static uint8_t data_in[64];
+static uint8_t data_out[RECOM_CTRL_BUFFER_SIZE];
+static uint8_t data_in[RECOM_CTRL_BUFFER_SIZE];
 
 static struct rec_transport_control rec_ctrl = {
     .type = eREC_TRANSPORT_TYPE_USB,
-    .max_data_len = 64,
+    .max_data_len = RECOM_CTRL_BUFFER_SIZE,
 };
 
 static struct rec_message rec_msg;
