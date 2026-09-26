@@ -108,7 +108,7 @@ bool rec_bdev_process_msg(struct rec_transport_control *ctrl, struct rec_message
             if (data_len >= ctrl->max_data_len || data_len == 0) {
                 return false;
             }
-            memcpy((char *) msg->buffer, p_str, ctrl->max_data_len);
+            memcpy((char *) msg->buffer, p_str, data_len);
             msg->data_len = data_len;
             return true;
         } else {
