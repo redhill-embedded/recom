@@ -12,6 +12,8 @@ from recom.device import RecomDevice, RecomDeviceException
 from recom.device import RESET
 from recom.backend import backends
 from recom.log import format_log, LogFollower
+from recom import fw_update
+from recom.fw_image import ImageError
 
 # How often `recom log -f` re-reads the device log. The device has no read
 # cursor, so each poll transfers the whole buffered log; 75 ms keeps the
@@ -228,6 +230,89 @@ def diag_env(save_report=False):
             f.write("\tCompiler Flags: {}\n".format(sys.flags))
             f.write("\tPy_ENABLE_SHARED: {}\n".format(sysconfig.get_config_var('Py_ENABLE_SHARED')))
 
+class UpdateProgressPrinter:
+    """Renders fw_update progress on one console line per stage."""
+
+    LABELS = {
+        fw_update.STAGE_PREPARE: "Preparing device",
+        fw_update.STAGE_SEND: "Sending image",
+        fw_update.STAGE_VERIFY: "Verifying image",
+        fw_update.STAGE_REBOOT: "Rebooting device",
+        fw_update.STAGE_RECONNECT: "Waiting for device to come back",
+        fw_update.STAGE_CONFIRM: "Waiting for device to confirm new firmware",
+    }
+
+    def __init__(self):
+        self.stage = None
+        self.counted = False    # current stage has shown a done/total count
+
+    def __call__(self, stage, done, total):
+        if stage != self.stage:
+            if self.stage is not None:
+                print()
+            self.stage = stage
+            self.counted = False
+        label = self.LABELS.get(stage, stage)
+        if stage == fw_update.STAGE_SEND and total:
+            print(f"\r{label}: {100 * done // total:3d}% ({done}/{total} bytes)",
+                  end="", flush=True)
+        elif total > 1:
+            self.counted = True
+            print(f"\r{label}: {done}/{total}", end="", flush=True)
+        elif not self.counted:
+            print(f"\r{label}...", end="", flush=True)
+
+    def finish(self):
+        if self.stage is not None:
+            print()
+            self.stage = None
+
+
+def run_update(image_path, device_id, serial, permanent, wait, timeout):
+    """`recom update`: returns a process exit code."""
+    if image_path is None:
+        print("Please provide the firmware image file to upload")
+        return 2
+    if not os.path.isfile(image_path):
+        print(f"No such file: {image_path}")
+        return 2
+    try:
+        dev = RecomDevice(id=device_id, serial=serial)
+    except RecomDeviceException.MultipleDevicesFound:
+        print("More than one matching device found; select one with -S <serial>")
+        return 1
+    except Exception as e:
+        print(f"Device not found ({e.__class__.__name__})")
+        return 1
+
+    try:
+        before = dev.getFwImageInfo().version
+    except Exception:
+        before = None
+    print(f"Updating {dev} (serial {dev.get_serial()}), running "
+          f"{before if before else dev.fw_revision}")
+
+    printer = UpdateProgressPrinter()
+    try:
+        result = fw_update.update_firmware(dev, image_path, permanent=permanent, wait=wait,
+                                           reboot_timeout=timeout, confirm_timeout=timeout,
+                                           progress=printer)
+    except (fw_update.FwUpdateFailed, ImageError,
+            RecomDeviceException.FwUpdateNotSupported) as e:
+        printer.finish()
+        print(f"Update failed: {e}")
+        return 1
+    except RecomDeviceException.TransportException as e:
+        printer.finish()
+        print(f"Update failed: lost communication with the device ({e}). An update "
+              "that did not reach the reboot leaves the running firmware unchanged; "
+              "run the update again.")
+        return 1
+    printer.finish()
+    print(("Success: " if result.success else "Update failed: ") + result.message)
+    return 0 if result.success else 1
+
+
 def print_info():
     print(f"\n*****\nWelcome to Recom {recom.__version__}")
     print("\nRecom is most useful as an API to interract with Recom-enabled boards, but there are")
@@ -238,6 +323,10 @@ def print_info():
     print("    - Extract and print a board's log ('log' command, optionally with '-d'/'-S';")
     print("      without either, every connected Recom device's log is printed).")
     print("      Add '-f' to follow the log, printing new entries until Ctrl-C (like 'dmesg -w').")
+    print("    - Update a device's firmware ('update <image.bin>' with '-d'/'-S'). Waits for the")
+    print("      device to reboot and checks it runs and confirms the new image; add")
+    print("      '--permanent' to skip the device's test boot, '--no-wait' to return after")
+    print("      the reboot.")
     print("*****\n")
 
 def cli(argv):
@@ -251,6 +340,12 @@ def cli(argv):
     parser.add_argument("-f", "--follow", action="store_true",
                         help="With 'log': keep polling and print new entries until interrupted")
     parser.add_argument("--report", action="store_true", help="Write env report to file")
+    parser.add_argument("--permanent", action="store_true",
+                        help="With 'update': install permanently instead of as a test boot")
+    parser.add_argument("--no-wait", action="store_true",
+                        help="With 'update': don't wait for the device to come back")
+    parser.add_argument("--timeout", type=float, default=60.0,
+                        help="With 'update': seconds to wait for reboot/confirmation (default 60)")
 
     args, remaining_args = parser.parse_known_args(argv)
 
@@ -277,6 +372,9 @@ def cli(argv):
             follow_log(args.device, args.serial)
         else:
             run_log(args.device, args.serial)
+    elif args.cmd == "update":
+        return run_update(remaining_args[0] if remaining_args else None, args.device,
+                          args.serial, args.permanent, not args.no_wait, args.timeout)
     elif args.cmd == "env":
         diag_env(args.report)
     else:

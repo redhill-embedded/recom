@@ -1,12 +1,15 @@
 #from interface import DeviceInterface
 import enum
 import struct
+from dataclasses import dataclass
+from typing import Optional
 
 from recom.backend import backends
 from recom.backend.backend import RecomDeviceDescriptor
 from recom.interface import RecomInterface
 from recom.exceptions import RecomDeviceException
 from recom.log import format_log
+from recom.fw_image import ImageVersion
 
 # Recom device identifier. DO NOT CHANGE!
 RECOM_DEV_ID = 0x53C08A30
@@ -20,6 +23,103 @@ class BASE_DEV_CMDS(enum.IntEnum):
     CMD_RESET           = 0x05,
     CMD_GET_INTERFACES  = 0x06,
     CMD_LOG_READ        = 0x07,
+    # Firmware update (protocol version 2+)
+    CMD_FW_INFO         = 0x08,
+    CMD_FW_BEGIN        = 0x09,
+    CMD_FW_DATA         = 0x0A,
+    CMD_FW_FINISH       = 0x0B,
+    CMD_FW_APPLY        = 0x0C,
+    CMD_FW_ABORT        = 0x0D,
+    CMD_FW_STATUS       = 0x0E,
+    CMD_FW_IMAGE_INFO   = 0x0F,
+
+# First protocol version with the firmware-update commands.
+FW_UPDATE_MIN_PROTOCOL_VERSION = 2
+
+
+class FwResult(enum.IntEnum):
+    """Mirrors enum rec_fw_result (client/include/recom_fw_update.h)."""
+    OK              = 0
+    BUSY            = 1
+    ERR_STATE       = 2
+    ERR_PARAM       = 3
+    ERR_SIZE        = 4
+    ERR_BOUNDS      = 5
+    ERR_ALIGN       = 6
+    ERR_OVERLAP     = 7
+    ERR_INCOMPLETE  = 8
+    ERR_BAD_IMAGE   = 9
+    ERR_UNCONFIRMED = 10
+    ERR_FLASH       = 11
+    ERR_UNSUPPORTED = 12
+
+
+FW_RESULT_TEXT = {
+    FwResult.OK: "ok",
+    FwResult.BUSY: "device busy",
+    FwResult.ERR_STATE: "not allowed in the device's current update state",
+    FwResult.ERR_PARAM: "malformed request",
+    FwResult.ERR_SIZE: "image size not accepted (too large or too small)",
+    FwResult.ERR_BOUNDS: "write outside the image",
+    FwResult.ERR_ALIGN: "misaligned write",
+    FwResult.ERR_OVERLAP: "data already written",
+    FwResult.ERR_INCOMPLETE: "image incomplete",
+    FwResult.ERR_BAD_IMAGE: "image rejected by the device's checks",
+    FwResult.ERR_UNCONFIRMED: "the running firmware is not yet confirmed "
+                              "(a previous update is still on its test boot)",
+    FwResult.ERR_FLASH: "device storage error",
+    FwResult.ERR_UNSUPPORTED: "not supported by the device",
+}
+
+
+def fw_result_text(code) -> str:
+    try:
+        return FW_RESULT_TEXT[FwResult(code)]
+    except ValueError:
+        return f"unknown error {code}"
+
+
+class FwState(enum.IntEnum):
+    """Mirrors enum rec_fw_state."""
+    IDLE        = 0
+    PREPARING   = 1
+    RECEIVING   = 2
+    VERIFYING   = 3
+    READY       = 4
+    APPLIED     = 5
+    ERROR       = 6
+
+
+class FwApplyMode(enum.IntEnum):
+    """Mirrors enum rec_fw_apply_mode."""
+    TEST        = 0
+    PERMANENT   = 1
+
+
+@dataclass
+class FwInfo:
+    image_format: int
+    max_chunk: int
+    write_align: int
+    max_image_size: int
+
+
+@dataclass
+class FwStatus:
+    state: int
+    busy: bool
+    last_result: int
+    op_error: int
+    image_size: int
+    bytes_received: int
+    progress_done: int
+    progress_total: int
+
+
+@dataclass
+class FwImageInfo:
+    confirmed: bool
+    version: Optional[ImageVersion]
 
 # Chunk size for CMD_LOG_READ. Must not exceed the device's own
 # control-transfer buffer (RECOM_INTERFACE_DATA_BUFFER_SIZE in
@@ -57,6 +157,15 @@ class BaseDevice:
 
     def __repr__(self):
         return repr(self._comsBackend)
+
+    def close(self):
+        """Releases the device (e.g. before it reboots)."""
+        if self._comsBackend:
+            self._comsBackend.close()
+
+    @property
+    def backend(self):
+        return self._comsBackend
 
     def getAllInterfaces(self):
         """Returns a list of available interfaces"""
@@ -154,6 +263,78 @@ class BaseDevice:
         unprocessed blob.
         """
         return format_log(self.getLogBytes())
+
+    # ---------------------------------------------------------------- #
+    # Firmware update (see client/include/recom_fw_update.h for the
+    # device side and payload layouts). recom.fw_update drives these.
+    # ---------------------------------------------------------------- #
+
+    def _fw_write(self, cmd, data=b'', value=0, index=0):
+        """Sends a firmware-update write request. A refused request comes
+        back as a bare STALL; the reason is read from FW_STATUS."""
+        try:
+            self._comsBackend.write(cmd, data, value=value, index=index)
+        except RecomDeviceException.RequestRejected:
+            # Support itself was established by getFwInfo(); if the reason
+            # can't be read now, the device went away mid-request (a
+            # disconnect can surface as a STALL too).
+            try:
+                result = self.getFwStatus().last_result
+            except RecomDeviceException.TransportException as e:
+                raise RecomDeviceException.TransportException(
+                    f"device stopped responding ({e})") from None
+            raise RecomDeviceException.FwUpdateError(fw_result_text(result), result) from None
+
+    def getFwInfo(self) -> FwInfo:
+        try:
+            data = bytes(self._comsBackend.read(BASE_DEV_CMDS.CMD_FW_INFO, dataLen=12))
+        except RecomDeviceException.RequestRejected:
+            raise RecomDeviceException.FwUpdateNotSupported(
+                "device does not support firmware update") from None
+        if len(data) < 12:
+            raise RecomDeviceException.FwUpdateError("short FW_INFO response")
+        _ver, fmt, max_chunk, write_align, _rsv, max_size = struct.unpack('<BBHHHI', data[:12])
+        return FwInfo(fmt, max_chunk, write_align, max_size)
+
+    def getFwStatus(self) -> FwStatus:
+        data = bytes(self._comsBackend.read(BASE_DEV_CMDS.CMD_FW_STATUS, dataLen=16))
+        if len(data) < 16:
+            raise RecomDeviceException.FwUpdateError("short FW_STATUS response")
+        (state, flags, last_result, op_error, image_size, received,
+         done, total) = struct.unpack('<BBBBIIHH', data[:16])
+        return FwStatus(state, bool(flags & 0x01), last_result, op_error, image_size,
+                        received, done, total)
+
+    def getFwImageInfo(self) -> FwImageInfo:
+        try:
+            data = bytes(self._comsBackend.read(BASE_DEV_CMDS.CMD_FW_IMAGE_INFO, dataLen=12))
+        except RecomDeviceException.RequestRejected:
+            raise RecomDeviceException.FwUpdateNotSupported(
+                "device does not report its firmware image") from None
+        if len(data) < 12:
+            raise RecomDeviceException.FwUpdateError("short FW_IMAGE_INFO response")
+        flags, major, minor, _rsv, revision, _rsv2, build = struct.unpack('<BBBBHHI', data[:12])
+        version = ImageVersion(major, minor, revision, build) if flags & 0x02 else None
+        return FwImageInfo(bool(flags & 0x01), version)
+
+    def fwBegin(self, image_size: int):
+        self._fw_write(BASE_DEV_CMDS.CMD_FW_BEGIN, struct.pack('<I', image_size))
+
+    def fwWrite(self, offset: int, chunk: bytes):
+        # The 32-bit offset travels in the request's value (high half) and
+        # index (low half) fields.
+        self._fw_write(BASE_DEV_CMDS.CMD_FW_DATA, chunk,
+                       value=(offset >> 16) & 0xFFFF, index=offset & 0xFFFF)
+
+    def fwFinish(self):
+        self._fw_write(BASE_DEV_CMDS.CMD_FW_FINISH)
+
+    def fwApply(self, mode: int = FwApplyMode.TEST):
+        self._fw_write(BASE_DEV_CMDS.CMD_FW_APPLY, struct.pack('B', mode))
+
+    def fwAbort(self):
+        self._fw_write(BASE_DEV_CMDS.CMD_FW_ABORT)
+
 
 class RecomDevice(BaseDevice):
 

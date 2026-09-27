@@ -16,7 +16,14 @@
 /* Recom protocol version
  * This is increased every-time a protocol change is made.
  */
-#define RECOM_PROTOCOL_VER  (0x0001)
+#define RECOM_PROTOCOL_VER  (0x0002)
+
+/* Size of the buffers RECom uses for base-device requests (one request's
+ * payload, in either direction). This bounds, e.g., the firmware-update
+ * chunk size (see REC_BDEV_CMD_FW_DATA). Override in recom_config.h. */
+#ifndef RECOM_CTRL_BUFFER_SIZE
+#define RECOM_CTRL_BUFFER_SIZE  (64)
+#endif
 
 #ifndef RECOM_INFO
 #define RECOM_INFO(...) ((void) 0)
@@ -25,6 +32,15 @@
 #ifndef RECOM_DEBUG
 #define RECOM_DEBUG(...) ((void) 0)
 #endif
+
+/* USB only: vendor request code Windows uses to fetch RECom's Microsoft OS
+ * 2.0 descriptor set (bRequest). Reserved -- never a base-device command. */
+#define REC_MS_OS_20_VENDOR_CODE    (0xF0)
+
+/* USB only: subclass/protocol of RECom's built-in, endpoint-less control
+ * interface (always interface 0; see recom_usb.c). */
+#define REC_CTRL_ITF_SUBCLASS       (0x52)  /* 'R' */
+#define REC_CTRL_ITF_PROTOCOL       (0x43)  /* 'C' */
 
 enum rec_transport_type {
     eREC_TRANSPORT_TYPE_NONE = 0,
@@ -63,6 +79,15 @@ enum rec_bdev_req_type {
     REC_BDEV_CMD_RESET      = 5,
     REC_BDEV_CMD_GET_INTF   = 6,
     REC_BDEV_CMD_LOG_READ   = 7,
+    /* Firmware update (protocol version 2+), see recom_fw_update.h */
+    REC_BDEV_CMD_FW_INFO        = 8,
+    REC_BDEV_CMD_FW_BEGIN       = 9,
+    REC_BDEV_CMD_FW_DATA        = 10,
+    REC_BDEV_CMD_FW_FINISH      = 11,
+    REC_BDEV_CMD_FW_APPLY       = 12,
+    REC_BDEV_CMD_FW_ABORT       = 13,
+    REC_BDEV_CMD_FW_STATUS      = 14,
+    REC_BDEV_CMD_FW_IMAGE_INFO  = 15,
 };
 
 enum rec_bdev_reset_opt {
