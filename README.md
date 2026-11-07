@@ -1,26 +1,46 @@
 # recom
 
-## Firmware update
+RECom is a communication layer between a host and embedded devices over USB
+or a serial port. The repository has two parts:
 
-RECom can update a device's firmware over its RECom connection:
+- [`client/`](client/): the device-side C library, linked into the firmware.
+- [`host/`](host/): the `recom` Python package, an API for talking to
+  RECom-enabled boards plus the `recom` command-line tool. Its
+  [README](host/README.md) is the package description on PyPI.
+
+## Install
 
     pip install recom
+
+## Development
+
+Work on the host package from `host/`:
+
+    pip install -e .
+    pip install -r requirements-dev.txt
+    make test        # run the test suite
+    make package     # build the sdist and wheel into dist/
+    make publish     # build, then upload to PyPI with twine
+
+The package is built with Hatchling, and its version comes from the git tags
+via `hatch-vcs`. To release, tag the commit (e.g. `0.1.2`) and build from it.
+Between tags the version says how far past the last tag the build is:
+
+| State                     | Version                       |
+|---------------------------|-------------------------------|
+| On tag `0.1.1`            | `0.1.1`                       |
+| 3 commits after `0.1.1`   | `0.1.1.post1.dev3+g<hash>`    |
+| Uncommitted changes       | `.d<date>` appended           |
+
+## Firmware update
+
+RECom can update a device's firmware over its RECom connection, using the
+`recom` host tool (see [Install](#install)):
+
     recom update -d VID:PID firmware.bin        # or -S SERIAL to pick one device
 
-The host tool checks the image against what the device reports it accepts,
-sends it, has the device verify it, tells the device to install it, and
-reboots the device. It then waits for the device to disconnect and come
-back, on the same USB port or, by serial number, on another one. It reads the
-running firmware version and waits until the device confirms the new image.
-It exits non-zero if any step fails, including when the device comes back
-still running the old firmware.
-
-Options: `--permanent` installs without a test boot. `--no-wait` returns
-once the device reboots. `--timeout S` bounds the reconnect and
-confirmation waits (default 60 s).
-
-The same sequence is available as a library call:
-`recom.fw_update.update_firmware(RecomDevice(id="VID:PID"), "firmware.bin")`.
+The host side (what the tool checks, its options, and the equivalent library
+call) is described in [host/README.md](host/README.md#firmware-update).
 
 ### Device side
 
@@ -35,8 +55,8 @@ bootloader. The header documents the requests and payloads.
 - Callbacks must return quickly. Slow work such as erasing or hashing is
   reported as `busy` in the status and advanced from
   `rec_device_poll_cb()`, which `recom_task()` calls on every pass.
-- `RECOM_CTRL_BUFFER_SIZE` (in `recom_config.h`, default 64) bounds the
-  chunk size. Larger chunks transfer faster: 512 bytes gives about 40 KB/s
+- `RECOM_CTRL_BUFFER_SIZE` (default 64, set in `recom_defs.h`; override it
+  in `recom_config.h`) bounds the chunk size. Larger chunks transfer faster: 512 bytes gives about 40 KB/s
   over full-speed USB.
 - The device reports the image format. For `MCUBOOT` images the host
   checks the file's MCUboot header and TLVs before sending and compares
