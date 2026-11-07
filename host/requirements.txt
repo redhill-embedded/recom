@@ -1,6 +1,6 @@
 # Runtime dependencies for the recom host package.
 #
-# This mirrors `install_requires` in setup.py, which is the source of
+# This mirrors `dependencies` in pyproject.toml, which is the source of
 # truth when recom is installed as a package (`pip install .`). This file
 # is here for the plain "set up a working tree" case:
 #

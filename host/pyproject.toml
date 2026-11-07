@@ -1,10 +1,48 @@
 [build-system]
-requires = [
-    "setuptools>=61.0",
-    "setuptools-scm",
-    "wheel"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "recom"
+dynamic = ["version"]
+description = "Embedded communication backend"
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Adrian Rothenbuhler", email = "adrian@redhill-embedded.com" },
 ]
-build-backend = "setuptools.build_meta"
+keywords = ["embedded", "communication", "backend", "usb", "serial"]
+requires-python = ">=3.8"
+dependencies = [
+    "libusb1",
+    "pyserial",
+    "pyudev",
+    "psutil",
+]
+
+[project.urls]
+Repository = "https://github.com/redhill-embedded/recom.git"
+
+[project.scripts]
+recom = "recom.__main__:main"
+
+# Version from git: `1.2.3` on a tag, `1.2.3.post1.dev<N>+g<hash>` N commits
+# after it, `.d<date>` appended for a dirty tree. The repo root (one up) holds
+# the tags.
+[tool.hatch.version]
+source = "vcs"
+raw-options = { root = "..", version_scheme = "no-guess-dev" }
+
+[tool.hatch.build.targets.wheel]
+packages = ["recom"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "recom",
+    "tests",
+    "requirements*.txt",
+    "README.md",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

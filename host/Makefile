@@ -20,4 +20,4 @@ publish: package
 # The 'clean' target removes previous build artifacts.
 clean:
 	@echo "Cleaning previous builds..."
-	rm -rf build dist *.egg-info
+	rm -rf build dist
