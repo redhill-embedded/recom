@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "recom_defs.h"
+#include "recom_fw_update.h"
 #include "backend/usb/recom_usb.h"
 #include "backend/usb/recom_usb_generic_interface.h"
 #include "backend/usb/recom_usb_cdc_interface.h"
@@ -28,6 +29,10 @@ bool recom_init(struct rec_config *cfg)
 
 bool recom_task(void)
 {
+    /* Lets the application advance long-running work it started from a
+     * request callback (e.g. a firmware-update erase), in this context. */
+    rec_device_poll_cb();
+
     if (trans_type == eREC_TRANSPORT_TYPE_USB) {
         return recom_usb_task();
     } else if (trans_type == eREC_TRANSPORT_TYPE_UART) {
